@@ -2,11 +2,26 @@
 # Point both DNS A records at the server first.
 
 api.tech.dropout.it {
-	encode gzip
-	request_body {
-		max_size 10MB
+	# Lesson video uploads (teachers/admin) may be large: up to 2 GB, streamed to disk.
+	@video path_regexp video ^/api/v1/teacher/lessons/[^/]+/video$
+	handle @video {
+		request_body {
+			max_size 2100MB
+		}
+		reverse_proxy api:3000 {
+			transport http {
+				read_timeout 2h
+				write_timeout 2h
+			}
+		}
 	}
-	reverse_proxy api:3000
+	handle {
+		encode gzip
+		request_body {
+			max_size 10MB
+		}
+		reverse_proxy api:3000
+	}
 }
 
 tech.dropout.it, www.tech.dropout.it {

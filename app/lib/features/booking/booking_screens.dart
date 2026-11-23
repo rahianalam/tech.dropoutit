@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:material_ui/material_ui.dart';
+import '../../core/i18n.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../core/auth.dart';
 import '../../core/format.dart';
@@ -51,7 +52,7 @@ class _BookSessionScreenState extends ConsumerState<BookSessionScreen> with Widg
       if (o['status'] == 'PAID') {
         _pendingOrder = null;
         if (mounted) {
-          showMessage(context, 'সেশন নিশ্চিত হয়েছে!');
+          showMessage(context, t('Session confirmed!', 'সেশন নিশ্চিত হয়েছে!'));
           context.go('/learning?tab=sessions');
         }
         return;
@@ -59,7 +60,7 @@ class _BookSessionScreenState extends ConsumerState<BookSessionScreen> with Widg
       if (o['status'] != 'PENDING') break;
       await Future<void>.delayed(const Duration(seconds: 2));
     }
-    if (mounted) showMessage(context, 'পেমেন্ট এখনো নিশ্চিত হয়নি। স্লটটি ১০ মিনিট আপনার জন্য রাখা আছে।');
+    if (mounted) showMessage(context, t('Payment not confirmed yet. The slot is held for you for 10 minutes.', 'পেমেন্ট এখনো নিশ্চিত হয়নি। স্লটটি ১০ মিনিট আপনার জন্য রাখা আছে।'));
   }
 
   Future<void> _book() async {
@@ -70,7 +71,7 @@ class _BookSessionScreenState extends ConsumerState<BookSessionScreen> with Widg
       final res = await ref.read(apiProvider).post<Map<String, dynamic>>('/bookings', {'teacherId': widget.teacherId, 'startAt': slot['startAt']});
       if (res['gatewayUrl'] == null) {
         if (mounted) {
-          showMessage(context, 'ফ্রি সেশন নিশ্চিত হয়েছে!');
+          showMessage(context, t('Free session confirmed!', 'ফ্রি সেশন নিশ্চিত হয়েছে!'));
           context.go('/learning?tab=sessions');
         }
         return;
@@ -89,7 +90,7 @@ class _BookSessionScreenState extends ConsumerState<BookSessionScreen> with Widg
   Widget build(BuildContext context) {
     final slots = ref.watch(slotsProvider(widget.teacherId));
     return Scaffold(
-      appBar: AppBar(title: Text(widget.teacherName == null ? 'সেশন বুক করুন' : '${widget.teacherName}-এর সাথে সেশন')),
+      appBar: AppBar(title: Text(widget.teacherName == null ? t('Book a session', 'সেশন বুক করুন') : t('Session with ${widget.teacherName}', '${widget.teacherName}-এর সাথে সেশন'))),
       bottomNavigationBar: _picked == null
           ? null
           : SafeArea(
@@ -100,7 +101,7 @@ class _BookSessionScreenState extends ConsumerState<BookSessionScreen> with Widg
                   child: Padding(
                     padding: const EdgeInsets.all(12),
                     child: Text('${_full.format(DateTime.parse(_picked!['startAt'] as String).toLocal())} · '
-                        '${_picked!['pricePaisa'] == 0 ? 'ফ্রি' : taka(_picked!['pricePaisa'] as int)} — বুক করুন'),
+                        '${t('${_picked!['pricePaisa'] == 0 ? 'Free' : taka(_picked!['pricePaisa'] as int)} — Book now', '${_picked!['pricePaisa'] == 0 ? 'ফ্রি' : taka(_picked!['pricePaisa'] as int)} — বুক করুন')}'),
                   ),
                 ),
               ),
@@ -109,13 +110,13 @@ class _BookSessionScreenState extends ConsumerState<BookSessionScreen> with Widg
         value: slots,
         onRetry: () => ref.invalidate(slotsProvider(widget.teacherId)),
         data: (list) {
-          if (list.isEmpty) return const EmptyState('আগামী ২ সপ্তাহে কোনো খালি সময় নেই', icon: Icons.event_busy);
+          if (list.isEmpty) return EmptyState(t('No free time in the next 2 weeks', 'আগামী ২ সপ্তাহে কোনো খালি সময় নেই'), icon: Icons.event_busy);
           final byDay = <String, List<Map<String, dynamic>>>{};
           for (final s in list.cast<Map<String, dynamic>>()) {
             byDay.putIfAbsent(_day.format(DateTime.parse(s['startAt'] as String).toLocal()), () => []).add(s);
           }
           return ListView(padding: const EdgeInsets.all(16), children: [
-            Text('সময়গুলো আপনার ফোনের সময় অনুযায়ী দেখানো হচ্ছে।', style: Theme.of(context).textTheme.bodySmall),
+            Text(t('Times are shown in your phone\'s time zone.', 'সময়গুলো আপনার ফোনের সময় অনুযায়ী দেখানো হচ্ছে।'), style: Theme.of(context).textTheme.bodySmall),
             for (final entry in byDay.entries) ...[
               const SizedBox(height: 16),
               Text(entry.key, style: Theme.of(context).textTheme.titleMedium),
@@ -123,7 +124,7 @@ class _BookSessionScreenState extends ConsumerState<BookSessionScreen> with Widg
               Wrap(spacing: 8, runSpacing: 8, children: [
                 for (final s in entry.value)
                   ChoiceChip(
-                    label: Text('${_time.format(DateTime.parse(s['startAt'] as String).toLocal())} · ${s['pricePaisa'] == 0 ? 'ফ্রি' : taka(s['pricePaisa'] as int)}'),
+                    label: Text(t('${_time.format(DateTime.parse(s['startAt'] as String).toLocal())} · ${s['pricePaisa'] == 0 ? 'Free' : taka(s['pricePaisa'] as int)}', '${_time.format(DateTime.parse(s['startAt'] as String).toLocal())} · ${s['pricePaisa'] == 0 ? 'ফ্রি' : taka(s['pricePaisa'] as int)}')),
                     selected: _picked?['startAt'] == s['startAt'],
                     onSelected: (_) => setState(() => _picked = s),
                   ),
@@ -139,7 +140,7 @@ class _BookSessionScreenState extends ConsumerState<BookSessionScreen> with Widg
 final myBookingsProvider = FutureProvider.autoDispose<List<dynamic>>((ref) => ref.read(apiProvider).get('/me/bookings'));
 final teacherBookingsProvider = FutureProvider.autoDispose<List<dynamic>>((ref) => ref.read(apiProvider).get('/teacher/bookings'));
 
-const _status = {'CONFIRMED': 'নিশ্চিত', 'COMPLETED': 'সম্পন্ন', 'CANCELLED': 'বাতিল', 'NO_SHOW': 'অনুপস্থিত'};
+Map<String, String> get _status => {'CONFIRMED': t('Confirmed', 'নিশ্চিত'), 'COMPLETED': t('Completed', 'সম্পন্ন'), 'CANCELLED': t('Cancel', 'বাতিল'), 'NO_SHOW': t('No-show', 'অনুপস্থিত')};
 
 /// A session card with Join (opens 15 minutes before), cancel, complete and review actions.
 class BookingTile extends ConsumerWidget {
@@ -165,8 +166,8 @@ class BookingTile extends ConsumerWidget {
         title: Text(title),
         content: TextField(controller: c, maxLines: 3, decoration: InputDecoration(labelText: label)),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('বাতিল')),
-          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('পাঠান')),
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(t('Cancel', 'বাতিল'))),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Text(t('Send', 'পাঠান'))),
         ],
       ),
     );
@@ -181,7 +182,7 @@ class BookingTile extends ConsumerWidget {
     final now = DateTime.now();
     final status = b['status'] as String;
     final confirmed = status == 'CONFIRMED';
-    final canJoin = confirmed && now.isAfter(start.subtract(const Duration(minutes: 15))) && now.isBefore(end.add(const Duration(minutes: 30)));
+    final canJoin = confirmed && now.isAfter(start.subtract(Duration(minutes: 15))) && now.isBefore(end.add(Duration(minutes: 30)));
     final started = now.isAfter(start);
     final other = (asTeacher ? b['student'] : b['teacher']) as Map<String, dynamic>;
     return Card(
@@ -194,40 +195,40 @@ class BookingTile extends ConsumerWidget {
         OverflowBar(alignment: MainAxisAlignment.end, spacing: 4, children: [
           if (confirmed && !started)
             TextButton(
-              onPressed: () => _act(context, ref, () => api.post('/bookings/${b['id']}/cancel'), 'সেশন বাতিল হয়েছে'),
-              child: const Text('বাতিল'),
+              onPressed: () => _act(context, ref, () => api.post('/bookings/${b['id']}/cancel'), t('Session cancelled', 'সেশন বাতিল হয়েছে')),
+              child: Text(t('Cancel', 'বাতিল')),
             ),
           if (asTeacher && confirmed && started) ...[
             TextButton(
-              onPressed: () => _act(context, ref, () => api.post('/bookings/${b['id']}/complete', {'outcome': 'NO_SHOW'}), 'অনুপস্থিত হিসেবে চিহ্নিত'),
-              child: const Text('স্টুডেন্ট আসেনি'),
+              onPressed: () => _act(context, ref, () => api.post('/bookings/${b['id']}/complete', {'outcome': 'NO_SHOW'}), t('Marked as no-show', 'অনুপস্থিত হিসেবে চিহ্নিত')),
+              child: Text(t('Student didn\'t come', 'স্টুডেন্ট আসেনি')),
             ),
             FilledButton.tonal(
-              onPressed: () => _act(context, ref, () => api.post('/bookings/${b['id']}/complete', {'outcome': 'COMPLETED'}), 'সম্পন্ন'),
-              child: const Text('সম্পন্ন'),
+              onPressed: () => _act(context, ref, () => api.post('/bookings/${b['id']}/complete', {'outcome': 'COMPLETED'}), t('Completed', 'সম্পন্ন')),
+              child: Text(t('Completed', 'সম্পন্ন')),
             ),
           ],
           if (!asTeacher && confirmed && started)
             TextButton(
               onPressed: () async {
-                final reason = await _ask(context, 'সমস্যা জানান', 'কী হয়েছিল?');
-                if (reason != null && context.mounted) await _act(context, ref, () => api.post('/bookings/${b['id']}/report', {'reason': reason}), 'অ্যাডমিনকে জানানো হয়েছে');
+                final reason = await _ask(context, t('Report a problem', 'সমস্যা জানান'), t('What happened?', 'কী হয়েছিল?'));
+                if (reason != null && context.mounted) await _act(context, ref, () => api.post('/bookings/${b['id']}/report', {'reason': reason}), t('The admin has been told', 'অ্যাডমিনকে জানানো হয়েছে'));
               },
-              child: const Text('সমস্যা জানান'),
+              child: Text(t('Report a problem', 'সমস্যা জানান')),
             ),
           if (!asTeacher && status == 'COMPLETED' && b['review'] == null)
             TextButton(
               onPressed: () async {
-                final r = await askRating(context, 'সেশনটি কেমন ছিল?');
-                if (r != null && context.mounted) await _act(context, ref, () => api.post('/bookings/${b['id']}/review', {'rating': r}), 'ধন্যবাদ!');
+                final r = await askRating(context, t('How was the session?', 'সেশনটি কেমন ছিল?'));
+                if (r != null && context.mounted) await _act(context, ref, () => api.post('/bookings/${b['id']}/review', {'rating': r}), t('Thank you!', 'ধন্যবাদ!'));
               },
-              child: const Text('রিভিউ দিন'),
+              child: Text(t('Leave a review', 'রিভিউ দিন')),
             ),
           if (canJoin && b['meetingUrl'] != null)
             FilledButton.icon(
               onPressed: () => launchUrl(Uri.parse(b['meetingUrl'] as String), mode: LaunchMode.externalApplication),
               icon: const Icon(Icons.videocam),
-              label: const Text('জয়েন করুন'),
+              label: Text(t('Join', 'জয়েন করুন')),
             ),
           const SizedBox(width: 8),
         ]),
@@ -245,7 +246,7 @@ class MySessionsList extends ConsumerWidget {
       value: list,
       onRetry: () => ref.invalidate(myBookingsProvider),
       data: (items) => items.isEmpty
-          ? const EmptyState('কোনো সেশন বুক করেননি। টিচারের প্রোফাইল থেকে সেশন বুক করুন।', icon: Icons.event_available_outlined)
+          ? EmptyState(t('You haven\'t booked any sessions. Book one from a teacher\'s profile.', 'কোনো সেশন বুক করেননি। টিচারের প্রোফাইল থেকে সেশন বুক করুন।'), icon: Icons.event_available_outlined)
           : RefreshIndicator(
               onRefresh: () => ref.refresh(myBookingsProvider.future),
               child: ListView.separated(
@@ -265,14 +266,14 @@ class TeacherSessionsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final list = ref.watch(teacherBookingsProvider);
     return Scaffold(
-      appBar: AppBar(title: const Text('আমার সেশন'), actions: [
-        TextButton.icon(onPressed: () => context.push('/teacher/availability'), icon: const Icon(Icons.schedule), label: const Text('সময়সূচি')),
+      appBar: AppBar(title: Text(t('My sessions', 'আমার সেশন')), actions: [
+        TextButton.icon(onPressed: () => context.push('/teacher/availability'), icon: Icon(Icons.schedule), label: Text(t('Schedule', 'সময়সূচি'))),
       ]),
       body: AsyncView(
         value: list,
         onRetry: () => ref.invalidate(teacherBookingsProvider),
         data: (items) => items.isEmpty
-            ? const EmptyState('এখনো কোনো বুকিং নেই। সময়সূচি দিলে স্টুডেন্টরা বুক করতে পারবে।', icon: Icons.event_note_outlined)
+            ? EmptyState(t('No bookings yet. Add your schedule so students can book you.', 'এখনো কোনো বুকিং নেই। সময়সূচি দিলে স্টুডেন্টরা বুক করতে পারবে।'), icon: Icons.event_note_outlined)
             : ListView.separated(
                 padding: const EdgeInsets.all(16),
                 itemCount: items.length,
@@ -285,7 +286,7 @@ class TeacherSessionsScreen extends ConsumerWidget {
 }
 
 final availabilityProvider = FutureProvider.autoDispose<List<dynamic>>((ref) => ref.read(apiProvider).get('/teacher/availability'));
-const _weekdays = ['রবিবার', 'সোমবার', 'মঙ্গলবার', 'বুধবার', 'বৃহস্পতিবার', 'শুক্রবার', 'শনিবার'];
+List<String> get _weekdays => [t('Sunday', 'রবিবার'), t('Monday', 'সোমবার'), t('Tuesday', 'মঙ্গলবার'), t('Wednesday', 'বুধবার'), t('Thursday', 'বৃহস্পতিবার'), t('Friday', 'শুক্রবার'), t('Saturday', 'শনিবার')];
 
 /// Weekly schedule editor: one or more time windows per weekday, slot length and price.
 class AvailabilityScreen extends ConsumerStatefulWidget {
@@ -309,7 +310,7 @@ class _AvailabilityScreenState extends ConsumerState<AvailabilityScreen> {
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, set) => AlertDialog(
-          title: const Text('সময় যোগ করুন'),
+          title: Text(t('Add a time', 'সময় যোগ করুন')),
           content: Column(mainAxisSize: MainAxisSize.min, children: [
             DropdownButtonFormField<int>(
               initialValue: weekday,
@@ -318,7 +319,7 @@ class _AvailabilityScreenState extends ConsumerState<AvailabilityScreen> {
             ),
             ListTile(
               contentPadding: EdgeInsets.zero,
-              title: Text('শুরু: ${start.format(ctx)}'),
+              title: Text(t('Start: ${start.format(ctx)}', 'শুরু: ${start.format(ctx)}')),
               onTap: () async {
                 final t = await showTimePicker(context: ctx, initialTime: start);
                 if (t != null) set(() => start = t);
@@ -326,7 +327,7 @@ class _AvailabilityScreenState extends ConsumerState<AvailabilityScreen> {
             ),
             ListTile(
               contentPadding: EdgeInsets.zero,
-              title: Text('শেষ: ${end.format(ctx)}'),
+              title: Text(t('End: ${end.format(ctx)}', 'শেষ: ${end.format(ctx)}')),
               onTap: () async {
                 final t = await showTimePicker(context: ctx, initialTime: end);
                 if (t != null) set(() => end = t);
@@ -334,16 +335,16 @@ class _AvailabilityScreenState extends ConsumerState<AvailabilityScreen> {
             ),
             DropdownButtonFormField<int>(
               initialValue: slot,
-              decoration: const InputDecoration(labelText: 'প্রতি সেশনের দৈর্ঘ্য'),
-              items: [for (final m in [30, 45, 60, 90, 120]) DropdownMenuItem(value: m, child: Text('$m মিনিট'))],
+              decoration: InputDecoration(labelText: t('Length of each session', 'প্রতি সেশনের দৈর্ঘ্য')),
+              items: [for (final m in [30, 45, 60, 90, 120]) DropdownMenuItem(value: m, child: Text(t('$m minutes', '$m মিনিট')))],
               onChanged: (v) => set(() => slot = v!),
             ),
             const SizedBox(height: 12),
-            TextField(controller: price, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'প্রতি সেশনের দাম (টাকা, ০ = ফ্রি)')),
+            TextField(controller: price, keyboardType: TextInputType.number, decoration: InputDecoration(labelText: t('Price per session (BDT, 0 = free)', 'প্রতি সেশনের দাম (টাকা, ০ = ফ্রি)'))),
           ]),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('বাতিল')),
-            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('যোগ করুন')),
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(t('Cancel', 'বাতিল'))),
+            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Text(t('Add', 'যোগ করুন'))),
           ],
         ),
       ),
@@ -362,7 +363,7 @@ class _AvailabilityScreenState extends ConsumerState<AvailabilityScreen> {
     try {
       await ref.read(apiProvider).dio.put('/teacher/availability', data: {'rules': _rules});
       ref.invalidate(availabilityProvider);
-      if (mounted) showMessage(context, 'সময়সূচি সেভ হয়েছে');
+      if (mounted) showMessage(context, t('Schedule saved', 'সময়সূচি সেভ হয়েছে'));
     } catch (e) {
       if (mounted) showMessage(context, e);
     }
@@ -372,7 +373,7 @@ class _AvailabilityScreenState extends ConsumerState<AvailabilityScreen> {
   Widget build(BuildContext context) {
     final data = ref.watch(availabilityProvider);
     return Scaffold(
-      appBar: AppBar(title: const Text('সাপ্তাহিক সময়সূচি'), actions: [TextButton(onPressed: _rules == null ? null : _save, child: const Text('সেভ'))]),
+      appBar: AppBar(title: Text(t('Weekly schedule', 'সাপ্তাহিক সময়সূচি')), actions: [TextButton(onPressed: _rules == null ? null : _save, child: Text(t('Save', 'সেভ')))]),
       floatingActionButton: FloatingActionButton(onPressed: _rules == null ? null : _add, child: const Icon(Icons.add)),
       body: AsyncView(
         value: data,
@@ -389,14 +390,14 @@ class _AvailabilityScreenState extends ConsumerState<AvailabilityScreen> {
           ];
           final sorted = [..._rules!]..sort((a, b) => (a['weekday']! * 1440 + a['startMinute']!) - (b['weekday']! * 1440 + b['startMinute']!));
           return ListView(padding: const EdgeInsets.all(16), children: [
-            const Text('যে সময়গুলোতে আপনি পড়াতে পারবেন সেগুলো যোগ করুন (বাংলাদেশ সময়)। স্টুডেন্টরা শুধু খালি স্লট দেখবে।'),
+            Text(t('Add the times you can teach (Bangladesh time). Students only see free slots.', 'যে সময়গুলোতে আপনি পড়াতে পারবেন সেগুলো যোগ করুন (বাংলাদেশ সময়)। স্টুডেন্টরা শুধু খালি স্লট দেখবে।')),
             const SizedBox(height: 12),
-            if (sorted.isEmpty) const EmptyState('এখনো কোনো সময় যোগ করেননি', icon: Icons.schedule),
+            if (sorted.isEmpty) EmptyState(t('No times added yet', 'এখনো কোনো সময় যোগ করেননি'), icon: Icons.schedule),
             for (final r in sorted)
               Card(
                 child: ListTile(
                   title: Text('${_weekdays[r['weekday']!]} · ${_hm(r['startMinute']!)} – ${_hm(r['endMinute']!)}'),
-                  subtitle: Text('${r['slotMinutes']} মিনিট · ${r['priceBdt'] == 0 ? 'ফ্রি' : '৳${r['priceBdt']}'}'),
+                  subtitle: Text(t('${r['slotMinutes']} min · ${r['priceBdt'] == 0 ? 'Free' : '৳${r['priceBdt']}'}', '${r['slotMinutes']} মিনিট · ${r['priceBdt'] == 0 ? 'ফ্রি' : '৳${r['priceBdt']}'}')),
                   trailing: IconButton(icon: const Icon(Icons.delete_outline), onPressed: () => setState(() => _rules!.remove(r))),
                 ),
               ),

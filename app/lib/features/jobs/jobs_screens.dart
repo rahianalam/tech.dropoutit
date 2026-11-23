@@ -3,6 +3,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
+import '../../core/i18n.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../core/api.dart';
 import '../../core/auth.dart';
@@ -44,12 +45,12 @@ class _JobsScreenState extends ConsumerState<JobsScreen> {
     final me = ref.watch(authProvider).me;
     final jobs = ref.watch(jobsProvider(_query));
     return Scaffold(
-      appBar: AppBar(title: const Text('জবস'), actions: [
+      appBar: AppBar(title: Text(t('Jobs', 'জবস')), actions: [
         if (me != null)
-          IconButton(tooltip: 'আমার আবেদন', icon: const Icon(Icons.assignment_ind_outlined), onPressed: () => context.push('/jobs/applications')),
+          IconButton(tooltip: t('My applications', 'আমার আবেদন'), icon: Icon(Icons.assignment_ind_outlined), onPressed: () => context.push('/jobs/applications')),
         TextButton.icon(
           icon: const Icon(Icons.business_center_outlined),
-          label: Text(me?.isEmployer ?? false ? 'আমার কোম্পানি' : 'জব পোস্ট'),
+          label: Text(me?.isEmployer ?? false ? t('My company', 'আমার কোম্পানি') : t('Post a job', 'জব পোস্ট')),
           onPressed: () => context.push(me == null ? '/login' : (me.isEmployer ? '/employer' : '/employer/setup')),
         ),
       ]),
@@ -59,14 +60,14 @@ class _JobsScreenState extends ConsumerState<JobsScreen> {
           TextField(
             controller: _search,
             textInputAction: TextInputAction.search,
-            decoration: const InputDecoration(prefixIcon: Icon(Icons.search), hintText: 'পদ, স্কিল বা কোম্পানি খুঁজুন', border: OutlineInputBorder()),
+            decoration: InputDecoration(prefixIcon: Icon(Icons.search), hintText: t('Search by role, skill or company', 'পদ, স্কিল বা কোম্পানি খুঁজুন'), border: OutlineInputBorder()),
             onSubmitted: (v) => setState(() => _query = (q: v.trim(), type: _query.type)),
           ),
           const SizedBox(height: 8),
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             child: Row(children: [
-              for (final e in {null: 'সব', ...jobTypes}.entries)
+              for (final e in {null: t('All', 'সব'), ...jobTypes}.entries)
                 Padding(
                   padding: const EdgeInsets.only(right: 8),
                   child: ChoiceChip(
@@ -82,8 +83,8 @@ class _JobsScreenState extends ConsumerState<JobsScreen> {
               margin: const EdgeInsets.only(top: 12),
               child: ListTile(
                 leading: const Icon(Icons.badge_outlined),
-                title: const Text('জব প্রোফাইল তৈরি করুন'),
-                subtitle: const Text('CV দিন, আপনার স্কিলের সাথে মেলে এমন জব আগে দেখবেন'),
+                title: Text(t('Create your job profile', 'জব প্রোফাইল তৈরি করুন')),
+                subtitle: Text(t('Add your CV and see jobs that match your skills first', 'CV দিন, আপনার স্কিলের সাথে মেলে এমন জব আগে দেখবেন')),
                 onTap: () => context.push('/jobs/profile'),
               ),
             ),
@@ -93,7 +94,7 @@ class _JobsScreenState extends ConsumerState<JobsScreen> {
             onRetry: () => ref.invalidate(jobsProvider(_query)),
             data: (page) {
               final items = page['items'] as List;
-              if (items.isEmpty) return const EmptyState('এই মুহূর্তে কোনো জব নেই। পরে আবার দেখুন।', icon: Icons.work_off_outlined);
+              if (items.isEmpty) return EmptyState(t('No jobs right now. Check back soon.', 'এই মুহূর্তে কোনো জব নেই। পরে আবার দেখুন।'), icon: Icons.work_off_outlined);
               return Column(children: [for (final j in items) JobCard(j as Map<String, dynamic>)]);
             },
           ),
@@ -134,7 +135,7 @@ class JobCard extends StatelessWidget {
               StatusPill(jobTypes[job['type']] ?? job['type'] as String),
               if (job['location'] != null) Text('📍 ${job['location']}', style: text.bodySmall),
               if (pay != null) Text(pay, style: text.bodySmall),
-              if (match > 0) StatusPill('$matchটা স্কিল মিলেছে', color: Colors.green.shade700),
+              if (match > 0) StatusPill(t('$match skills match', '$matchটা স্কিল মিলেছে'), color: Colors.green.shade700),
             ]),
           ]),
         ),
@@ -160,7 +161,7 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
       final profile = await ref.read(seekerProfileProvider.future);
       if (!mounted) return;
       if (profile == null || profile['cvUrl'] == null) {
-        showMessage(context, 'আবেদনের আগে জব প্রোফাইল আর CV যোগ করুন');
+        showMessage(context, t('Add your job profile and CV before applying', 'আবেদনের আগে জব প্রোফাইল আর CV যোগ করুন'));
         await context.push('/jobs/profile');
         return;
       }
@@ -171,17 +172,17 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
         builder: (ctx) => Padding(
           padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + MediaQuery.of(ctx).viewInsets.bottom),
           child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-            Text('আবেদন করুন', style: Theme.of(ctx).textTheme.titleLarge),
+            Text(t('Apply', 'আবেদন করুন'), style: Theme.of(ctx).textTheme.titleLarge),
             const SizedBox(height: 8),
-            Text('আপনার প্রোফাইল, CV (${profile['cvUpload']?['originalName'] ?? 'লিংক'}) আর পোর্টফোলিও কোম্পানি দেখতে পাবে।'),
+            Text(t('The company will see your profile, CV (${profile['cvUpload']?['originalName'] ?? 'link'}) and portfolio.', 'আপনার প্রোফাইল, CV (${profile['cvUpload']?['originalName'] ?? 'লিংক'}) আর পোর্টফোলিও কোম্পানি দেখতে পাবে।')),
             const SizedBox(height: 12),
             TextField(
               controller: letter,
               maxLines: 5,
               maxLength: 3000,
-              decoration: const InputDecoration(labelText: 'কভার লেটার (ঐচ্ছিক)', border: OutlineInputBorder(), alignLabelWithHint: true),
+              decoration: InputDecoration(labelText: t('Cover letter (optional)', 'কভার লেটার (ঐচ্ছিক)'), border: OutlineInputBorder(), alignLabelWithHint: true),
             ),
-            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Padding(padding: EdgeInsets.all(12), child: Text('আবেদন পাঠান'))),
+            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Padding(padding: EdgeInsets.all(12), child: Text(t('Send application', 'আবেদন পাঠান')))),
           ]),
         ),
       );
@@ -189,7 +190,7 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
       await ref.read(apiProvider).post('/jobs/${widget.id}/apply', {if (letter.text.trim().isNotEmpty) 'coverLetter': letter.text.trim()});
       ref.invalidate(jobProvider(widget.id));
       ref.invalidate(myApplicationsProvider);
-      if (mounted) showMessage(context, 'আবেদন পাঠানো হয়েছে! অগ্রগতি "আমার আবেদন"-এ দেখবেন।');
+      if (mounted) showMessage(context, t('Application sent! Track it in "My applications".', 'আবেদন পাঠানো হয়েছে! অগ্রগতি "আমার আবেদন"-এ দেখবেন।'));
     } catch (e) {
       if (mounted) showMessage(context, e);
     } finally {
@@ -220,7 +221,7 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
               Flexible(child: Text(employer['companyName'] as String, style: text.titleMedium)),
               if (employer['verified'] == true) ...[
                 const SizedBox(width: 4),
-                Tooltip(message: 'ভেরিফায়েড কোম্পানি', child: Icon(Icons.verified, size: 18, color: Theme.of(context).colorScheme.primary)),
+                Tooltip(message: t('Verified company', 'ভেরিফায়েড কোম্পানি'), child: Icon(Icons.verified, size: 18, color: Theme.of(context).colorScheme.primary)),
               ],
             ]),
             const SizedBox(height: 12),
@@ -229,40 +230,40 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
               if (j['status'] != 'LIVE') StatusPill(jobStatuses[j['status']] ?? j['status'] as String, color: Theme.of(context).colorScheme.error),
             ]),
             const SizedBox(height: 12),
-            if (j['location'] != null) ListTile(contentPadding: EdgeInsets.zero, dense: true, leading: const Icon(Icons.place_outlined), title: Text(j['location'] as String)),
-            if (pay != null) ListTile(contentPadding: EdgeInsets.zero, dense: true, leading: const Icon(Icons.payments_outlined), title: Text(pay)),
-            if (due != null) ListTile(contentPadding: EdgeInsets.zero, dense: true, leading: const Icon(Icons.event_outlined), title: Text(due)),
+            if (j['location'] != null) ListTile(contentPadding: EdgeInsets.zero, dense: true, leading: Icon(Icons.place_outlined), title: Text(j['location'] as String)),
+            if (pay != null) ListTile(contentPadding: EdgeInsets.zero, dense: true, leading: Icon(Icons.payments_outlined), title: Text(pay)),
+            if (due != null) ListTile(contentPadding: EdgeInsets.zero, dense: true, leading: Icon(Icons.event_outlined), title: Text(due)),
             const SizedBox(height: 8),
             if (own)
               OutlinedButton.icon(
                 icon: const Icon(Icons.people_outline),
-                label: Text('আবেদনকারী দেখুন (${j['_count']['applications']})'),
+                label: Text(t('View applicants (${j['_count']['applications']})', 'আবেদনকারী দেখুন (${j['_count']['applications']})')),
                 onPressed: () => context.push('/employer/jobs/${j['id']}/applicants?title=${Uri.encodeComponent(j['title'] as String)}'),
               )
             else if (applied != null)
               Card(
                 child: ListTile(
                   leading: const Icon(Icons.check_circle_outline),
-                  title: const Text('আপনি আবেদন করেছেন'),
+                  title: Text(t('You have applied', 'আপনি আবেদন করেছেন')),
                   trailing: StatusPill(stages[applied['stage']]!, color: stageColor(context, applied['stage'] as String)),
                 ),
               )
             else
               FilledButton(
                 onPressed: j['open'] == true && !_busy ? _apply : null,
-                child: Padding(padding: const EdgeInsets.all(12), child: Text(j['open'] == true ? 'আবেদন করুন' : 'আবেদন বন্ধ')),
+                child: Padding(padding: EdgeInsets.all(12), child: Text(j['open'] == true ? t('Apply', 'আবেদন করুন') : t('Applications closed', 'আবেদন বন্ধ'))),
               ),
             const SizedBox(height: 24),
-            Text('দরকারি স্কিল', style: text.titleMedium),
+            Text(t('Required skills', 'দরকারি স্কিল'), style: text.titleMedium),
             const SizedBox(height: 8),
             Wrap(spacing: 8, runSpacing: 4, children: [for (final s in j['skills'] as List) Chip(label: Text(s as String))]),
             const SizedBox(height: 24),
-            Text('কাজের বিবরণ', style: text.titleMedium),
+            Text(t('Job description', 'কাজের বিবরণ'), style: text.titleMedium),
             const SizedBox(height: 8),
             Text(j['description'] as String),
             if (employer['about'] != null) ...[
               const SizedBox(height: 24),
-              Text('কোম্পানি সম্পর্কে', style: text.titleMedium),
+              Text(t('About the company', 'কোম্পানি সম্পর্কে'), style: text.titleMedium),
               const SizedBox(height: 8),
               Text(employer['about'] as String),
             ],
@@ -335,7 +336,7 @@ class _SeekerProfileScreenState extends ConsumerState<SeekerProfileScreen> {
     if (file == null) return;
     final size = await file.length() ?? 0;
     if (size > 5 * 1024 * 1024) {
-      if (mounted) showMessage(context, 'CV ৫ MB-এর কম হতে হবে');
+      if (mounted) showMessage(context, t('CV must be smaller than 5 MB', 'CV ৫ MB-এর কম হতে হবে'));
       return;
     }
     setState(() => _busy = true);
@@ -360,7 +361,7 @@ class _SeekerProfileScreenState extends ConsumerState<SeekerProfileScreen> {
   Future<void> _save() async {
     if (!_form.currentState!.validate()) return;
     if (_cvUploadId == null && _cvLink.text.trim().isEmpty) {
-      showMessage(context, 'CV আপলোড করুন বা একটা লিংক দিন');
+      showMessage(context, t('Upload a CV or give a link', 'CV আপলোড করুন বা একটা লিংক দিন'));
       return;
     }
     setState(() => _busy = true);
@@ -377,7 +378,7 @@ class _SeekerProfileScreenState extends ConsumerState<SeekerProfileScreen> {
       ref.invalidate(seekerProfileProvider);
       await ref.read(authProvider.notifier).reload();
       if (mounted) {
-        showMessage(context, 'জব প্রোফাইল সেভ হয়েছে');
+        showMessage(context, t('Job profile saved', 'জব প্রোফাইল সেভ হয়েছে'));
         context.pop();
       }
     } catch (e) {
@@ -390,7 +391,7 @@ class _SeekerProfileScreenState extends ConsumerState<SeekerProfileScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('জব প্রোফাইল')),
+      appBar: AppBar(title: Text(t('Job profile', 'জব প্রোফাইল'))),
       body: !_loaded
           ? const Center(child: CircularProgressIndicator())
           : Form(
@@ -398,22 +399,22 @@ class _SeekerProfileScreenState extends ConsumerState<SeekerProfileScreen> {
               child: ListView(padding: const EdgeInsets.all(16), children: [
                 TextFormField(
                   controller: _headline,
-                  decoration: const InputDecoration(labelText: 'আপনি কী করেন?', hintText: 'যেমন: জুনিয়র Flutter ডেভেলপার', border: OutlineInputBorder()),
-                  validator: (v) => (v ?? '').trim().length < 3 ? 'কমপক্ষে ৩ অক্ষর লিখুন' : null,
+                  decoration: InputDecoration(labelText: t('What do you do?', 'আপনি কী করেন?'), hintText: t('e.g. Junior Flutter Developer', 'যেমন: জুনিয়র Flutter ডেভেলপার'), border: OutlineInputBorder()),
+                  validator: (v) => (v ?? '').trim().length < 3 ? t('Write at least 3 characters', 'কমপক্ষে ৩ অক্ষর লিখুন') : null,
                 ),
                 const SizedBox(height: 12),
                 TextFormField(
                   controller: _skills,
-                  decoration: const InputDecoration(labelText: 'স্কিল (কমা দিয়ে আলাদা করুন)', hintText: 'Flutter, Dart, Firebase', border: OutlineInputBorder()),
-                  validator: (v) => splitSkills(v ?? '').isEmpty ? 'অন্তত একটা স্কিল দিন' : null,
+                  decoration: InputDecoration(labelText: t('Skills (separate with commas)', 'স্কিল (কমা দিয়ে আলাদা করুন)'), hintText: 'Flutter, Dart, Firebase', border: OutlineInputBorder()),
+                  validator: (v) => splitSkills(v ?? '').isEmpty ? t('Add at least one skill', 'অন্তত একটা স্কিল দিন') : null,
                 ),
                 const SizedBox(height: 12),
-                TextFormField(controller: _location, decoration: const InputDecoration(labelText: 'এলাকা (ঐচ্ছিক)', border: OutlineInputBorder())),
+                TextFormField(controller: _location, decoration: InputDecoration(labelText: t('Area (optional)', 'এলাকা (ঐচ্ছিক)'), border: OutlineInputBorder())),
                 const SizedBox(height: 12),
                 TextFormField(
                   controller: _about,
                   maxLines: 4,
-                  decoration: const InputDecoration(labelText: 'নিজের সম্পর্কে (ঐচ্ছিক)', border: OutlineInputBorder(), alignLabelWithHint: true),
+                  decoration: InputDecoration(labelText: t('About you (optional)', 'নিজের সম্পর্কে (ঐচ্ছিক)'), border: OutlineInputBorder(), alignLabelWithHint: true),
                 ),
                 const SizedBox(height: 20),
                 Text('CV', style: Theme.of(context).textTheme.titleMedium),
@@ -421,35 +422,35 @@ class _SeekerProfileScreenState extends ConsumerState<SeekerProfileScreen> {
                 Card(
                   child: ListTile(
                     leading: const Icon(Icons.picture_as_pdf_outlined),
-                    title: Text(_cvName ?? (_cvUploadId != null ? 'CV আপলোড করা আছে' : 'কোনো CV আপলোড করা নেই')),
-                    subtitle: const Text('শুধু PDF, ৫ MB পর্যন্ত'),
+                    title: Text(_cvName ?? (_cvUploadId != null ? t('CV uploaded', 'CV আপলোড করা আছে') : t('No CV uploaded', 'কোনো CV আপলোড করা নেই'))),
+                    subtitle: Text(t('PDF only, up to 5 MB', 'শুধু PDF, ৫ MB পর্যন্ত')),
                     onTap: _cvUrl != null && _cvUploadId != null ? () => launchUrl(Uri.parse(_cvUrl!), mode: LaunchMode.externalApplication) : null,
-                    trailing: TextButton(onPressed: _busy ? null : _pickCv, child: Text(_cvUploadId == null ? 'আপলোড' : 'বদলান')),
+                    trailing: TextButton(onPressed: _busy ? null : _pickCv, child: Text(_cvUploadId == null ? t('Upload', 'আপলোড') : t('Change', 'বদলান'))),
                   ),
                 ),
                 const SizedBox(height: 8),
                 TextFormField(
                   controller: _cvLink,
                   keyboardType: TextInputType.url,
-                  decoration: const InputDecoration(labelText: 'অথবা CV-এর লিংক (Google Drive ইত্যাদি)', border: OutlineInputBorder()),
+                  decoration: InputDecoration(labelText: t('Or a link to your CV (Google Drive etc.)', 'অথবা CV-এর লিংক (Google Drive ইত্যাদি)'), border: OutlineInputBorder()),
                   validator: (v) {
                     final t = (v ?? '').trim();
                     if (t.isEmpty) return null;
                     final u = Uri.tryParse(t);
-                    return u == null || !u.hasScheme || !u.scheme.startsWith('http') ? 'https:// দিয়ে শুরু হওয়া লিংক দিন' : null;
+                    return u == null || !u.hasScheme || !u.scheme.startsWith('http') ? tr('Enter a link starting with https://', 'https:// দিয়ে শুরু হওয়া লিংক দিন') : null;
                   },
                 ),
                 SwitchListTile(
                   contentPadding: EdgeInsets.zero,
-                  title: const Text('কাজ খুঁজছি'),
-                  subtitle: const Text('কোম্পানিগুলো আপনাকে খুঁজে পাবে'),
+                  title: Text(t('Open to work', 'কাজ খুঁজছি')),
+                  subtitle: Text(t('Companies can find you', 'কোম্পানিগুলো আপনাকে খুঁজে পাবে')),
                   value: _openToWork,
                   onChanged: (v) => setState(() => _openToWork = v),
                 ),
                 const SizedBox(height: 4),
-                Text('আপনার পোর্টফোলিও লিংক আর Tech.Dropout-এ শেষ করা কোর্সগুলোও আবেদনের সাথে কোম্পানি দেখতে পাবে।', style: Theme.of(context).textTheme.bodySmall),
+                Text(t('Companies also see your portfolio links and the courses you finished on Tech.Dropout.', 'আপনার পোর্টফোলিও লিংক আর Tech.Dropout-এ শেষ করা কোর্সগুলোও আবেদনের সাথে কোম্পানি দেখতে পাবে।'), style: Theme.of(context).textTheme.bodySmall),
                 const SizedBox(height: 16),
-                FilledButton(onPressed: _busy ? null : _save, child: const Padding(padding: EdgeInsets.all(12), child: Text('সেভ করুন'))),
+                FilledButton(onPressed: _busy ? null : _save, child: Padding(padding: EdgeInsets.all(12), child: Text(t('Save', 'সেভ করুন')))),
               ]),
             ),
     );
@@ -462,8 +463,8 @@ class MyApplicationsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final list = ref.watch(myApplicationsProvider);
     return Scaffold(
-      appBar: AppBar(title: const Text('আমার আবেদন'), actions: [
-        TextButton.icon(onPressed: () => context.push('/jobs/profile'), icon: const Icon(Icons.badge_outlined), label: const Text('জব প্রোফাইল')),
+      appBar: AppBar(title: Text(t('My applications', 'আমার আবেদন')), actions: [
+        TextButton.icon(onPressed: () => context.push('/jobs/profile'), icon: Icon(Icons.badge_outlined), label: Text(t('Job profile', 'জব প্রোফাইল'))),
       ]),
       body: RefreshIndicator(
         onRefresh: () => ref.refresh(myApplicationsProvider.future),
@@ -471,7 +472,7 @@ class MyApplicationsScreen extends ConsumerWidget {
           value: list,
           onRetry: () => ref.invalidate(myApplicationsProvider),
           data: (items) => items.isEmpty
-              ? ListView(children: const [SizedBox(height: 80), EmptyState('এখনো কোনো জবে আবেদন করেননি।', icon: Icons.work_outline)])
+              ? ListView(children: [SizedBox(height: 80), EmptyState(t('You haven\'t applied to any jobs yet.', 'এখনো কোনো জবে আবেদন করেননি।'), icon: Icons.work_outline)])
               : ListView.separated(
                   padding: const EdgeInsets.all(16),
                   itemCount: items.length,
@@ -483,7 +484,7 @@ class MyApplicationsScreen extends ConsumerWidget {
                     return Card(
                       child: ListTile(
                         title: Text(job['title'] as String),
-                        subtitle: Text('${job['employer']['companyName']}${job['status'] == 'CLOSED' ? ' · জব বন্ধ' : ''}'),
+                        subtitle: Text(t('${job['employer']['companyName']}${job['status'] == 'CLOSED' ? ' · Job closed' : ''}', '${job['employer']['companyName']}${job['status'] == 'CLOSED' ? ' · জব বন্ধ' : ''}')),
                         trailing: StatusPill(stages[stage]!, color: stageColor(context, stage)),
                         onTap: () => context.push('/jobs/${job['id']}'),
                         onLongPress: stage != 'APPLIED'
@@ -492,10 +493,10 @@ class MyApplicationsScreen extends ConsumerWidget {
                                 final ok = await showDialog<bool>(
                                   context: context,
                                   builder: (ctx) => AlertDialog(
-                                    title: const Text('আবেদন তুলে নেবেন?'),
+                                    title: Text(t('Withdraw application?', 'আবেদন তুলে নেবেন?')),
                                     actions: [
-                                      TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('না')),
-                                      FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('তুলে নিন')),
+                                      TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(t('No', 'না'))),
+                                      FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Text(t('Withdraw', 'তুলে নিন'))),
                                     ],
                                   ),
                                 );

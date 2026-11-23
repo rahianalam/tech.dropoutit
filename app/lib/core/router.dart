@@ -7,6 +7,9 @@ import '../features/auth/auth_screens.dart';
 import '../features/booking/booking_screens.dart';
 import '../features/course/course_screens.dart';
 import '../features/home/home_screen.dart';
+import '../features/home/search_screen.dart';
+import '../features/account/account_screens.dart';
+import '../features/admin/admin_manage_screens.dart';
 import '../features/jobs/employer_screens.dart';
 import '../features/jobs/jobs_screens.dart';
 import '../features/learning/my_learning_screen.dart';
@@ -14,30 +17,46 @@ import '../features/profile_screen.dart';
 import '../features/teacher/earnings_screen.dart';
 import '../features/teacher/teacher_screens.dart';
 import 'auth.dart';
+import 'i18n.dart';
 
-/// Tabs depend on the user's roles: everyone gets Explore / My learning / Jobs / Profile,
-/// teachers also get Teach, admins get Admin instead (their own courses live there).
-List<({String path, IconData icon, String label})> tabsFor(Me? me) => [
-      (path: '/', icon: Icons.explore_outlined, label: 'এক্সপ্লোর'),
-      (path: '/learning', icon: Icons.school_outlined, label: 'লার্নিং'),
-      (path: '/jobs', icon: Icons.work_outline, label: 'জবস'),
-      if ((me?.isTeacher ?? false) && !(me?.isAdmin ?? false)) (path: '/teacher', icon: Icons.cast_for_education_outlined, label: 'টিচিং'),
-      if (me?.isAdmin ?? false) (path: '/admin', icon: Icons.admin_panel_settings_outlined, label: 'অ্যাডমিন'),
-      (path: '/profile', icon: Icons.person_outline, label: 'প্রোফাইল'),
-    ];
+/// Bottom tabs (max 5) depend on the user's roles:
+/// students: Home, Search, My learning, Jobs, Account
+/// teachers: Home, Search, My learning, Teach, Account (jobs from Home/Account)
+/// admins:   Home, Search, Jobs, Admin, Account
+List<({String path, IconData icon, IconData selected, String label})> tabsFor(Me? me) {
+  final admin = me?.isAdmin ?? false;
+  final teacher = (me?.isTeacher ?? false) && !admin;
+  return [
+    (path: '/', icon: Icons.home_outlined, selected: Icons.home_rounded, label: t('Home', 'হোম')),
+    (path: '/search', icon: Icons.search_rounded, selected: Icons.saved_search_rounded, label: t('Search', 'খুঁজুন')),
+    if (!admin) (path: '/learning', icon: Icons.play_circle_outline_rounded, selected: Icons.play_circle_rounded, label: t('Learning', 'লার্নিং')),
+    if (!teacher) (path: '/jobs', icon: Icons.work_outline_rounded, selected: Icons.work_rounded, label: t('Jobs', 'জবস')),
+    if (teacher) (path: '/teacher', icon: Icons.cast_for_education_outlined, selected: Icons.cast_for_education_rounded, label: t('Teach', 'পড়ান')),
+    if (admin) (path: '/admin', icon: Icons.space_dashboard_outlined, selected: Icons.space_dashboard_rounded, label: t('Admin', 'অ্যাডমিন')),
+    (path: '/profile', icon: Icons.person_outline_rounded, selected: Icons.person_rounded, label: t('Account', 'অ্যাকাউন্ট')),
+  ];
+}
 
-const _needsLogin = ['/learning', '/teacher', '/admin', '/notifications', '/employer', '/jobs/profile', '/jobs/applications'];
+const _needsLogin = ['/learning', '/teacher', '/admin', '/notifications', '/employer', '/jobs/profile', '/jobs/applications', '/account'];
 
 /// Prefix match on whole path segments, so '/teacher' does not swallow the
 /// public '/teachers/:id' pages.
 bool _under(String loc, String root) => loc == root || loc.startsWith('$root/');
 
+/// Where the user was, so switching language (which rebuilds the router and every
+/// screen in the new language) keeps them on the same page.
+String _lastLocation = '/';
+
 final routerProvider = Provider<GoRouter>((ref) {
+  ref.watch(langProvider);
   final refresh = ValueNotifier(0);
   ref.listen(authProvider, (_, _) => refresh.value++);
   ref.onDispose(refresh.dispose);
 
-  return GoRouter(
+  late final GoRouter router;
+  void track() => _lastLocation = router.routerDelegate.currentConfiguration.uri.toString();
+  router = GoRouter(
+    initialLocation: _lastLocation,
     refreshListenable: refresh,
     redirect: (context, state) {
       final auth = ref.read(authProvider);
@@ -59,6 +78,16 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state, child) => _Shell(location: state.matchedLocation, child: child),
         routes: [
           GoRoute(path: '/', builder: (_, _) => const HomeScreen()),
+          GoRoute(
+            path: '/search',
+            builder: (_, s) => SearchScreen(
+              key: ValueKey(s.uri.toString()),
+              initialQuery: s.uri.queryParameters['q'] ?? '',
+              initialCategory: s.uri.queryParameters['category'],
+              initialFree: s.uri.queryParameters['free'] == null ? null : s.uri.queryParameters['free'] == 'true',
+              initialSort: s.uri.queryParameters['sort'],
+            ),
+          ),
           GoRoute(path: '/learning', builder: (_, s) => MyLearningScreen(initialTab: s.uri.queryParameters['tab'] == 'sessions' ? 1 : 0)),
           GoRoute(path: '/jobs', builder: (_, _) => const JobsScreen()),
           GoRoute(path: '/teacher', builder: (_, _) => const TeacherDashboard()),
@@ -94,9 +123,20 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/admin/payouts', builder: (_, _) => const PayoutsScreen()),
       GoRoute(path: '/admin/orders', builder: (_, _) => const OrdersScreen()),
       GoRoute(path: '/admin/settings', builder: (_, _) => const SettingsScreen()),
-      GoRoute(path: '/admin/courses', builder: (_, _) => const TeacherDashboard(title: 'আমার রেকর্ডেড কোর্স')),
+      GoRoute(path: '/admin/courses', builder: (_, _) => TeacherDashboard(customTitle: t('My recorded courses', 'আমার রেকর্ডেড কোর্স'))),
+      GoRoute(path: '/admin/all-courses', builder: (_, _) => const AdminCoursesScreen()),
+      GoRoute(path: '/admin/categories', builder: (_, _) => const CategoriesScreen()),
+      GoRoute(path: '/admin/users', builder: (_, _) => const UsersScreen()),
+      GoRoute(path: '/admin/audit', builder: (_, _) => const AuditScreen()),
+      GoRoute(path: '/account/security', builder: (_, _) => const AccountSecurityScreen()),
     ],
   );
+  router.routerDelegate.addListener(track);
+  ref.onDispose(() {
+    router.routerDelegate.removeListener(track);
+    router.dispose();
+  });
+  return router;
 });
 
 class _Shell extends ConsumerWidget {
@@ -106,13 +146,19 @@ class _Shell extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final tabs = tabsFor(ref.watch(authProvider).me);
-    final index = tabs.indexWhere((t) => t.path == location).clamp(0, tabs.length - 1);
+    final index = tabs.indexWhere((t) => t.path == location);
     return Scaffold(
       body: child,
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: index,
-        onDestinationSelected: (i) => context.go(tabs[i].path),
-        destinations: [for (final t in tabs) NavigationDestination(icon: Icon(t.icon), label: t.label)],
+      bottomNavigationBar: DecoratedBox(
+        decoration: BoxDecoration(border: Border(top: BorderSide(color: Theme.of(context).colorScheme.outlineVariant))),
+        child: NavigationBar(
+          selectedIndex: index < 0 ? 0 : index,
+          labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+          onDestinationSelected: (i) => context.go(tabs[i].path),
+          destinations: [
+            for (final t in tabs) NavigationDestination(icon: Icon(t.icon), selectedIcon: Icon(t.selected), label: t.label),
+          ],
+        ),
       ),
     );
   }

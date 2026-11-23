@@ -55,7 +55,7 @@ export class CoursesService {
     return this.prisma.course.findMany({
       where: { teacherId },
       orderBy: { updatedAt: 'desc' },
-      include: { _count: { select: { enrollments: true } } },
+      include: { _count: { select: { enrollments: true } }, category: { select: { name: true, color: true, icon: true } } },
     });
   }
 
@@ -63,7 +63,10 @@ export class CoursesService {
     await this.owned(courseId, user);
     const course = await this.prisma.course.findUniqueOrThrow({
       where: { id: courseId },
-      include: { sections: { orderBy: { position: 'asc' }, include: { lessons: { orderBy: { position: 'asc' } } } } },
+      include: {
+        category: { select: { name: true, color: true, icon: true } },
+        sections: { orderBy: { position: 'asc' }, include: { lessons: { orderBy: { position: 'asc' } } } },
+      },
     });
     return {
       ...course,
@@ -245,7 +248,7 @@ export class CoursesService {
       take: 200,
       include: {
         teacher: { select: { id: true, name: true } },
-        category: { select: { name: true } },
+        category: { select: { name: true, color: true, icon: true } },
         _count: { select: { enrollments: true, sections: true } },
       },
     });

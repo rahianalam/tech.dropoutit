@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'config.dart';
+import 'i18n.dart';
 
 /// Thin API client. Adds the access token, refreshes it once on 401, and turns
 /// server errors into [ApiError] with the server's message.
@@ -94,7 +95,7 @@ class ApiError implements Exception {
 
   factory ApiError.from(DioException e) {
     final data = e.response?.data;
-    var message = 'নেটওয়ার্ক সমস্যা, আবার চেষ্টা করুন';
+    var message = t('Network problem, please try again', 'নেটওয়ার্ক সমস্যা, আবার চেষ্টা করুন');
     if (data is Map && data['message'] != null) {
       final m = data['message'];
       message = m is List ? m.join('\n') : m.toString();

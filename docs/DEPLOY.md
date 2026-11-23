@@ -48,8 +48,15 @@ nano backend/.env
 export POSTGRES_PASSWORD=$(openssl rand -hex 24)
 echo "POSTGRES_PASSWORD=$POSTGRES_PASSWORD" > .env     # docker compose এটা পড়ে নেয়
 docker compose up -d --build
-docker compose exec api node dist/seed/seed.js         # প্রথম অ্যাডমিন তৈরি
+docker compose exec api node dist/seed/seed.js         # প্রথম অ্যাডমিন আর ক্যাটাগরি তৈরি
+docker compose exec api node dist/seed/demo.js         # (ঐচ্ছিক) ডেমো কোর্স, টিচার, জব
 ```
+
+আসল কনটেন্ট এলে ডেমো সরাতে: `docker compose exec api node dist/seed/demo.js --remove`।
+অ্যাডমিনের ইমেইল/পাসওয়ার্ড বদলানো আর অ্যাডমিন প্যানেলের পুরো গাইড: [ADMIN.md](ADMIN.md)।
+ভিডিও কোথায় জমা থাকে, আর পরে Firebase/S3-এ নেওয়ার উপায়: [STORAGE.md](STORAGE.md)।
+
+ভিডিও আপলোড: Caddy শুধু ভিডিও আপলোডের পথে ২ GB পর্যন্ত আর ২ ঘণ্টা সময় দেয়, বাকি সব রিকোয়েস্ট ১০ MB-তে সীমিত। সীমা বাড়াতে `.env`-এ `MAX_VIDEO_MB` আর `Caddyfile`-এ `max_size` দুটোই বদলান।
 
 যাচাই করুন:
 - https://api.tech.dropout.it/health → `{"ok":true}`
@@ -69,7 +76,7 @@ cd tech.dropoutit && git pull && docker compose up -d --build
 ### ব্যাকআপ (প্রতিদিন)
 ```bash
 crontab -e
-# প্রতিদিন রাত ৩টায় ডাটাবেস আর CV ফাইলের ব্যাকআপ, ১৪ দিনের পুরনো মুছে যায়
+# প্রতিদিন রাত ৩টায় ডাটাবেস আর আপলোড (CV, ছবি, ভিডিও) ফাইলের ব্যাকআপ, ১৪ দিনের পুরনো মুছে যায়
 0 3 * * * cd /root/tech.dropoutit && mkdir -p backups && docker compose exec -T db pg_dump -U techdropout techdropout | gzip > backups/db-$(date +\%F).sql.gz && docker run --rm -v techdropoutit_uploads:/u -v $PWD/backups:/b alpine tar czf /b/uploads-$(date +\%F).tgz -C /u . && find backups -mtime +14 -delete
 ```
 মাঝে মাঝে `backups` ফোল্ডারটা সার্ভারের বাইরে (Google Drive ইত্যাদিতে) কপি করে রাখুন।
