@@ -5,6 +5,6 @@ import helmet from 'helmet';
 export function configureApp(app: INestApplication) {
   app.use(helmet());
   app.enableCors();
-  app.setGlobalPrefix('api/v1', { exclude: ['health'] });
+  app.setGlobalPrefix('api/v1', { exclude: ['health', 'privacy', 'delete-account'] });
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }));
 }

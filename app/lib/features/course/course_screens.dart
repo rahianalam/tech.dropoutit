@@ -4,6 +4,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:video_player/video_player.dart';
 import '../../core/auth.dart';
+import '../../core/config.dart';
 import '../../core/format.dart';
 import '../../core/widgets.dart';
 import '../booking/booking_screens.dart';
@@ -104,13 +105,22 @@ class _CourseDetailScreenState extends ConsumerState<CourseDetailScreen> with Wi
             const SizedBox(height: 4),
             Text('${c['_count']['enrollments']} জন শিখছে'),
             const SizedBox(height: 16),
-            FilledButton(
-              onPressed: enrolled || _busy ? null : () => _enroll(c),
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Text(enrolled ? 'আপনি এনরোলড' : (c['isFree'] == true ? 'ফ্রি এনরোল করুন' : 'কিনুন ${price(c)}')),
+            if (storeBuild && !enrolled && c['isFree'] != true)
+              const Card(
+                child: ListTile(
+                  leading: Icon(Icons.workspace_premium_outlined),
+                  title: Text('এটি একটি প্রিমিয়াম কোর্স'),
+                  subtitle: Text('এই কোর্সটি অ্যাপ থেকে কেনা যায় না। আপনার অ্যাকাউন্টে কোর্সটি থাকলে এখানেই শিখতে পারবেন।'),
+                ),
+              )
+            else
+              FilledButton(
+                onPressed: enrolled || _busy ? null : () => _enroll(c),
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Text(enrolled ? 'আপনি এনরোলড' : (c['isFree'] == true ? 'ফ্রি এনরোল করুন' : 'কিনুন ${price(c)}')),
+                ),
               ),
-            ),
             if (enrolled)
               TextButton.icon(
                 icon: const Icon(Icons.star_outline),
@@ -273,7 +283,7 @@ class TeacherProfileScreen extends ConsumerWidget {
               ListTile(
                 contentPadding: EdgeInsets.zero,
                 title: Text(c['title'] as String),
-                trailing: Text(price(c as Map<String, dynamic>)),
+                trailing: Text(catalogPrice(c as Map<String, dynamic>)),
                 onTap: () => context.push('/courses/${c['id']}'),
               ),
           ]);

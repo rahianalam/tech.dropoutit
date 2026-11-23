@@ -1,0 +1,27 @@
+# HTTPS certificates are issued and renewed automatically by Caddy (Let's Encrypt).
+# Point both DNS A records at the server first.
+
+api.tech.dropout.it {
+	encode gzip
+	request_body {
+		max_size 10MB
+	}
+	reverse_proxy api:3000
+}
+
+tech.dropout.it, www.tech.dropout.it {
+	encode gzip
+	# Store pages live in the API
+	handle /privacy {
+		reverse_proxy api:3000
+	}
+	handle /delete-account {
+		reverse_proxy api:3000
+	}
+	# Web version of the app (admin panel works here too): copy app/build/web into ./web
+	handle {
+		root * /srv/web
+		try_files {path} /index.html
+		file_server
+	}
+}

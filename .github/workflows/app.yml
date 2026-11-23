@@ -1,0 +1,52 @@
+name: app
+on:
+  push:
+    branches: [main]
+  pull_request:
+    paths: ['app/**', '.github/workflows/app.yml']
+  workflow_dispatch:
+
+# Builds a test APK on every PR (download it from the run's "Artifacts" and install on a phone).
+# On main / manual runs it also builds the Play Store bundle (.aab). Release signing uses these
+# repository secrets when they exist; without them the build is signed with a debug key:
+#   ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD
+# Optional repository variables: API_URL (default https://api.tech.dropout.it/api/v1) and the FIREBASE_* values.
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults: { run: { working-directory: app } }
+    env:
+      API_URL: ${{ vars.API_URL || 'https://api.tech.dropout.it/api/v1' }}
+      # Push stays off until these repository variables exist (see docs/DEPLOY.md)
+      DEFINES: >-
+        --dart-define=FIREBASE_PROJECT_ID=${{ vars.FIREBASE_PROJECT_ID }}
+        --dart-define=FIREBASE_API_KEY=${{ vars.FIREBASE_API_KEY }}
+        --dart-define=FIREBASE_SENDER_ID=${{ vars.FIREBASE_SENDER_ID }}
+        --dart-define=FIREBASE_ANDROID_APP_ID=${{ vars.FIREBASE_ANDROID_APP_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: '21' }  # Android lint in AGP needs JDK 21
+      - uses: subosito/flutter-action@v2
+        with: { flutter-version: '3.50.1', channel: stable, cache: true }
+      - run: flutter pub get
+      - run: flutter analyze
+      - run: flutter test
+      - name: Release signing
+        env:
+          KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        if: env.KEYSTORE != ''
+        run: |
+          echo "$KEYSTORE" | base64 -d > android/app/upload-keystore.jks
+          printf 'storePassword=%s\nkeyPassword=%s\nkeyAlias=%s\nstoreFile=upload-keystore.jks\n' "$STORE_PASSWORD" "$KEY_PASSWORD" "$KEY_ALIAS" > android/key.properties
+      - run: flutter build apk --release --dart-define=API_URL=$API_URL --dart-define=STORE_BUILD=true $DEFINES --build-number=${{ github.run_number }}
+      - uses: actions/upload-artifact@v4
+        with: { name: tech-dropout-apk, path: app/build/app/outputs/flutter-apk/app-release.apk, retention-days: 14 }
+      - if: github.event_name != 'pull_request'
+        run: flutter build appbundle --release --dart-define=API_URL=$API_URL --dart-define=STORE_BUILD=true $DEFINES --build-number=${{ github.run_number }}
+      - if: github.event_name != 'pull_request'
+        uses: actions/upload-artifact@v4
+        with: { name: tech-dropout-aab, path: app/build/app/outputs/bundle/release/app-release.aab, retention-days: 30 }

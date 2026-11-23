@@ -17,6 +17,8 @@ import { NotificationsModule } from './users/notifications.module';
 import { PaymentsModule } from './payments/payments.module';
 import { PayoutsModule } from './payouts/payouts.module';
 import { JobsModule } from './jobs/jobs.module';
+import { PushModule } from './push/push.module';
+import { LegalModule } from './legal/legal.module';
 import { UploadsModule } from './uploads/uploads.module';
 import { BookingsModule } from './bookings/bookings.module';
 
@@ -44,6 +46,8 @@ class HealthController {
     BookingsModule,
     UploadsModule,
     JobsModule,
+    PushModule,
+    LegalModule,
   ],
   controllers: [HealthController],
   providers: [{ provide: APP_GUARD, useClass: AuthGuard }],

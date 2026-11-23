@@ -22,6 +22,8 @@ enum Role {
 enum UserStatus {
   ACTIVE
   BLOCKED
+  /// The person deleted their account; personal data is wiped, money records stay.
+  DELETED
 }
 
 model User {
@@ -55,6 +57,7 @@ model User {
   uploads              Upload[]
   notifications        Notification[]
   refreshTokens        RefreshToken[]
+  deviceTokens         DeviceToken[]
 }
 
 model UserRole {
@@ -568,8 +571,29 @@ model Notification {
   title     String
   body      String
   readAt    DateTime?
+  /// Set once the push has been sent (or there was no device to send to).
+  pushedAt  DateTime?
   createdAt DateTime  @default(now())
   user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([pushedAt, createdAt])
+}
+
+enum DevicePlatform {
+  ANDROID
+  IOS
+}
+
+/// A phone that receives push notifications (Firebase Cloud Messaging token).
+model DeviceToken {
+  token      String         @id
+  userId     String
+  platform   DevicePlatform
+  createdAt  DateTime       @default(now())
+  lastSeenAt DateTime       @default(now())
+  user       User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 model AuditLog {
