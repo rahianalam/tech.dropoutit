@@ -256,4 +256,29 @@ export class CoursesService {
     const { mediaKey, section, ...rest } = lesson;
     return { ...rest, courseId: course.id, mediaUrl: mediaKey ? this.media.sign(mediaKey) : null };
   }
+
+  // ---------- reviews ----------
+
+  /** Enrolled students rate a course once (editable); the course's average is recomputed. */
+  async rateCourse(courseId: string, userId: string, rating: number, comment?: string) {
+    const enrolled = await this.prisma.enrollment.findFirst({ where: { userId, courseId, status: 'ACTIVE' } });
+    if (!enrolled) throw new ForbiddenException('Enroll in the course to review it');
+    const review = await this.prisma.review.upsert({
+      where: { userId_courseId: { userId, courseId } },
+      create: { userId, courseId, rating, comment },
+      update: { rating, comment },
+    });
+    const agg = await this.prisma.review.aggregate({ where: { courseId }, _avg: { rating: true }, _count: true });
+    await this.prisma.course.update({ where: { id: courseId }, data: { ratingAvg: agg._avg.rating ?? 0, ratingCount: agg._count } });
+    return review;
+  }
+
+  reviews(courseId: string) {
+    return this.prisma.review.findMany({
+      where: { courseId },
+      orderBy: { createdAt: 'desc' },
+      take: 50,
+      include: { user: { select: { name: true, avatarUrl: true } } },
+    });
+  }
 }

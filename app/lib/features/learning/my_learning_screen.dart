@@ -3,17 +3,36 @@ import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 import '../../core/auth.dart';
 import '../../core/widgets.dart';
+import '../booking/booking_screens.dart';
 
 final myEnrollmentsProvider = FutureProvider.autoDispose<List<dynamic>>((ref) => ref.read(apiProvider).get('/me/enrollments'));
 
 class MyLearningScreen extends ConsumerWidget {
-  const MyLearningScreen({super.key});
+  const MyLearningScreen({super.key, this.initialTab = 0});
+  final int initialTab;
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return DefaultTabController(
+      key: ValueKey(initialTab),
+      length: 2,
+      initialIndex: initialTab,
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('আমার লার্নিং'),
+          bottom: const TabBar(tabs: [Tab(text: 'কোর্স'), Tab(text: 'সেশন')]),
+        ),
+        body: const TabBarView(children: [_CoursesTab(), MySessionsList()]),
+      ),
+    );
+  }
+}
+
+class _CoursesTab extends ConsumerWidget {
+  const _CoursesTab();
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final items = ref.watch(myEnrollmentsProvider);
-    return Scaffold(
-      appBar: AppBar(title: const Text('আমার লার্নিং')),
-      body: AsyncView(
+    return AsyncView(
         value: items,
         onRetry: () => ref.invalidate(myEnrollmentsProvider),
         data: (list) => list.isEmpty
@@ -40,7 +59,6 @@ class MyLearningScreen extends ConsumerWidget {
                   );
                 },
               ),
-      ),
     );
   }
 }

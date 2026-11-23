@@ -4,6 +4,7 @@ import 'package:material_ui/material_ui.dart';
 import '../features/admin/admin_screens.dart';
 import '../features/admin/money_screens.dart';
 import '../features/auth/auth_screens.dart';
+import '../features/booking/booking_screens.dart';
 import '../features/course/course_screens.dart';
 import '../features/home/home_screen.dart';
 import '../features/learning/my_learning_screen.dart';
@@ -24,6 +25,10 @@ List<({String path, IconData icon, String label})> tabsFor(Me? me) => [
 
 const _needsLogin = ['/learning', '/teacher', '/admin', '/notifications'];
 
+/// Prefix match on whole path segments, so '/teacher' does not swallow the
+/// public '/teachers/:id' pages.
+bool _under(String loc, String root) => loc == root || loc.startsWith('$root/');
+
 final routerProvider = Provider<GoRouter>((ref) {
   final refresh = ValueNotifier(0);
   ref.listen(authProvider, (_, _) => refresh.value++);
@@ -36,11 +41,11 @@ final routerProvider = Provider<GoRouter>((ref) {
       if (!auth.ready) return null;
       final loc = state.matchedLocation;
       final me = auth.me;
-      if (me == null && _needsLogin.any(loc.startsWith)) return '/login';
+      if (me == null && (_needsLogin.any((r) => _under(loc, r)) || loc.endsWith('/book'))) return '/login';
       if (me != null && (loc == '/login' || loc == '/register')) return '/';
-      if (loc.startsWith('/admin') && !(me?.isAdmin ?? false)) return '/';
+      if (_under(loc, '/admin') && !(me?.isAdmin ?? false)) return '/';
       final canTeach = (me?.isTeacher ?? false) || ((me?.isAdmin ?? false) && loc.startsWith('/teacher/courses'));
-      if (loc.startsWith('/teacher') && loc != '/teacher/apply' && !canTeach) return '/teacher/apply';
+      if (_under(loc, '/teacher') && loc != '/teacher/apply' && !canTeach) return '/teacher/apply';
       return null;
     },
     routes: [
@@ -50,7 +55,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state, child) => _Shell(location: state.matchedLocation, child: child),
         routes: [
           GoRoute(path: '/', builder: (_, _) => const HomeScreen()),
-          GoRoute(path: '/learning', builder: (_, _) => const MyLearningScreen()),
+          GoRoute(path: '/learning', builder: (_, s) => MyLearningScreen(initialTab: s.uri.queryParameters['tab'] == 'sessions' ? 1 : 0)),
           GoRoute(path: '/teacher', builder: (_, _) => const TeacherDashboard()),
           GoRoute(path: '/admin', builder: (_, _) => const AdminDashboard()),
           GoRoute(path: '/profile', builder: (_, _) => const ProfileScreen()),
@@ -59,6 +64,9 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/courses/:id', builder: (_, s) => CourseDetailScreen(s.pathParameters['id']!)),
       GoRoute(path: '/lessons/:id', builder: (_, s) => LessonScreen(s.pathParameters['id']!)),
       GoRoute(path: '/teachers/:id', builder: (_, s) => TeacherProfileScreen(s.pathParameters['id']!)),
+      GoRoute(path: '/teachers/:id/book', builder: (_, s) => BookSessionScreen(s.pathParameters['id']!, teacherName: s.uri.queryParameters['name'])),
+      GoRoute(path: '/teacher/sessions', builder: (_, _) => const TeacherSessionsScreen()),
+      GoRoute(path: '/teacher/availability', builder: (_, _) => const AvailabilityScreen()),
       GoRoute(path: '/notifications', builder: (_, _) => const NotificationsScreen()),
       GoRoute(path: '/teacher/apply', builder: (_, _) => const TeacherApplyScreen()),
       GoRoute(path: '/teacher/courses/:id', builder: (_, s) => CourseEditorScreen(s.pathParameters['id']!)),

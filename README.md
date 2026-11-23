@@ -27,7 +27,17 @@ Phase 2 (payments) — done:
 - Refunds remove access and void or claw back the teacher's earning
 - The admin's own official courses earn no teacher payout
 
-Next: phase 3 session booking, phase 4 jobs, phase 5 release.
+Phase 3 (1:1 sessions) — done:
+
+- Teachers set a weekly schedule (Bangladesh time) with slot length and a price per rule; 0 = free intro session
+- Students see open slots for the next 14 days (at least 2 hours ahead) and book; one live booking per slot is enforced by the database
+- Paid sessions hold the slot for 10 minutes while the student pays through SSLCommerz; if the hold ran out and someone else took the slot, the payment is refunded
+- Video call link (Jitsi by default, `MEETING_BASE_URL`), reminders 24 h and 15 min before, join button opens 15 min early
+- Student can cancel up to 24 h before (paid sessions are refunded); teacher can cancel any time; teacher marks completed / no-show, otherwise auto-completed
+- Earnings use the session commission and the same hold and payout flow as courses
+- Students rate sessions and courses; either side can report a problem to the admin
+
+Next: phase 4 jobs, phase 5 release.
 The full data model for those phases is already in `backend/prisma/schema.prisma`.
 
 ## Run locally

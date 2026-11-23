@@ -424,13 +424,22 @@ model Booking {
   status     BookingStatus @default(HELD)
   heldUntil  DateTime?
   meetingUrl String?
+  pricePaisa Int           @default(0)
+  reminded24 Boolean       @default(false)
+  reminded15 Boolean       @default(false)
+  cancelledBy String?
+  // 'live' while HELD/CONFIRMED/COMPLETED, NULL once cancelled or no-show.
+  // Postgres treats NULLs as distinct, so the unique key below allows only
+  // one live booking per teacher slot while keeping cancelled history.
+  slotLock   String?       @default("live")
   createdAt  DateTime      @default(now())
   teacher    User          @relation("bookingTeacher", fields: [teacherId], references: [id])
   student    User          @relation("bookingStudent", fields: [studentId], references: [id])
   order      Order?        @relation(fields: [orderId], references: [id])
   review     Review?
 
-  @@unique([teacherId, startAt])
+  @@unique([teacherId, startAt, slotLock])
+  @@index([studentId])
 }
 
 // ---------- Jobs (phase 4) ----------

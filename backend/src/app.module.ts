@@ -16,6 +16,7 @@ import { TeachersModule } from './teachers/teachers.module';
 import { NotificationsModule } from './users/notifications.module';
 import { PaymentsModule } from './payments/payments.module';
 import { PayoutsModule } from './payouts/payouts.module';
+import { BookingsModule } from './bookings/bookings.module';
 
 @Controller()
 class HealthController {
@@ -38,6 +39,7 @@ class HealthController {
     NotificationsModule,
     PaymentsModule,
     PayoutsModule,
+    BookingsModule,
   ],
   controllers: [HealthController],
   providers: [{ provide: APP_GUARD, useClass: AuthGuard }],
