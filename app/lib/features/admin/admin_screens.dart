@@ -100,11 +100,13 @@ class AdminDashboard extends ConsumerWidget {
                     onTap: () => context.push('/admin/applications')),
                 MenuItem(icon: Icons.work_outline_rounded, title: t('Jobs & companies', 'জব ও কোম্পানি'), trailing: _Count(n('jobsInReview')),
                     onTap: () => context.push('/admin/jobs')),
+                MenuItem(icon: Icons.handshake_outlined, title: t('Affiliates', 'অ্যাফিলিয়েট'), subtitle: t('Check NID and selfie, approve, pay', 'NID ও সেলফি যাচাই, অনুমোদন, পেমেন্ট'),
+                    onTap: () => context.push('/admin/affiliates')),
               ]),
               MenuGroup(title: t('Money', 'টাকা-পয়সা'), items: [
                 MenuItem(icon: Icons.receipt_long_outlined, title: t('Orders & refunds', 'অর্ডার ও রিফান্ড'), onTap: () => context.push('/admin/orders')),
                 MenuItem(icon: Icons.account_balance_outlined, title: t('Teacher payouts & income', 'টিচার পেআউট ও আয়ের হিসাব'), onTap: () => context.push('/admin/payouts')),
-                MenuItem(icon: Icons.tune_rounded, title: t('Commission & payout settings', 'কমিশন ও পেআউট সেটিংস'), onTap: () => context.push('/admin/settings')),
+                MenuItem(icon: Icons.tune_rounded, title: t('Fees, levels & rules', 'ফি, লেভেল ও নিয়ম'), onTap: () => context.push('/admin/settings')),
               ]),
               MenuGroup(title: t('System', 'সিস্টেম'), items: [
                 MenuItem(icon: Icons.lock_outline_rounded, title: t('Admin login & password', 'অ্যাডমিন লগইন ও পাসওয়ার্ড'),
@@ -325,37 +327,81 @@ class SettingsScreen extends ConsumerStatefulWidget {
   ConsumerState<SettingsScreen> createState() => _SettingsScreenState();
 }
 
+/// One editable number: '%' fields are stored as basis points, '৳' as paisa.
+typedef _Num = ({String key, String unit, String en, String bn});
+
 class _SettingsScreenState extends ConsumerState<SettingsScreen> {
-  final _course = TextEditingController();
-  final _session = TextEditingController();
-  final _hold = TextEditingController();
-  final _min = TextEditingController();
+  static const _groups = <(String, String, List<_Num>)>[
+    ('Fees', 'ফি', [
+      (key: 'sessionCommissionBps', unit: '%', en: 'Platform fee on 1:1 bookings', bn: '১:১ বুকিংয়ে প্ল্যাটফর্ম ফি'),
+      (key: 'courseCommissionBps', unit: '%', en: 'Platform fee on course sales', bn: 'কোর্স বিক্রিতে প্ল্যাটফর্ম ফি'),
+      (key: 'silverCourseCommissionBps', unit: '%', en: 'Course fee for Silver instructors', bn: 'সিলভার ইন্সট্রাক্টরের কোর্স ফি'),
+      (key: 'goldCourseCommissionBps', unit: '%', en: 'Course fee for Gold instructors', bn: 'গোল্ড ইন্সট্রাক্টরের কোর্স ফি'),
+      (key: 'vatBps', unit: '%', en: 'VAT', bn: 'ভ্যাট'),
+    ]),
+    ('Instructor levels', 'ইন্সট্রাক্টর লেভেল', [
+      (key: 'silverSales', unit: '#', en: 'Course sales for Silver', bn: 'সিলভারের জন্য কোর্স বিক্রি'),
+      (key: 'goldSales', unit: '#', en: 'Course sales for Gold', bn: 'গোল্ডের জন্য কোর্স বিক্রি'),
+      (key: 'freeCoursesRequired', unit: '#', en: 'Free courses before the blue tick', bn: 'ব্লু টিকের আগে ফ্রি কোর্স'),
+      (key: 'viewsRequired', unit: '#', en: 'Views for the blue tick', bn: 'ব্লু টিকের জন্য ভিউ'),
+      (key: 'watchMinutesRequired', unit: '#', en: 'Watch minutes for the blue tick', bn: 'ব্লু টিকের জন্য দেখার মিনিট'),
+      (key: 'bookingResponseHours', unit: '#', en: 'Hours to answer a booking request', bn: 'বুকিং রিকোয়েস্টের উত্তর দেওয়ার ঘণ্টা'),
+    ]),
+    ('Video storage', 'ভিডিও স্টোরেজ', [
+      (key: 'freeVideoLimit', unit: '#', en: 'Free videos per instructor', bn: 'ইন্সট্রাক্টরপ্রতি ফ্রি ভিডিও'),
+      (key: 'starterVideoLimit', unit: '#', en: 'Starter plan videos', bn: 'স্টার্টার প্ল্যানের ভিডিও'),
+      (key: 'starterPricePaisa', unit: '৳', en: 'Starter price per month', bn: 'স্টার্টারের মাসিক দাম'),
+      (key: 'proVideoLimit', unit: '#', en: 'Pro plan videos', bn: 'প্রো প্ল্যানের ভিডিও'),
+      (key: 'proPricePaisa', unit: '৳', en: 'Pro price per month', bn: 'প্রোর মাসিক দাম'),
+      (key: 'unlimitedPricePaisa', unit: '৳', en: 'Unlimited price per month', bn: 'আনলিমিটেডের মাসিক দাম'),
+    ]),
+    ('Referrals & affiliates', 'রেফারেল ও অ্যাফিলিয়েট', [
+      (key: 'referralTarget', unit: '#', en: 'Paying friends for a free pass', bn: 'ফ্রি পাসের জন্য পেইড বন্ধু'),
+      (key: 'referralPassDays', unit: '#', en: 'Free pass length (days)', bn: 'ফ্রি পাসের মেয়াদ (দিন)'),
+      (key: 'affiliateCommissionBps', unit: '%', en: 'Affiliate commission', bn: 'অ্যাফিলিয়েট কমিশন'),
+      (key: 'affiliateFeePaisa', unit: '৳', en: 'Affiliate membership fee', bn: 'অ্যাফিলিয়েট মেম্বারশিপ ফি'),
+      (key: 'affiliateInactiveDays', unit: '#', en: 'Idle days before deactivation', bn: 'কত দিন নিষ্ক্রিয় থাকলে বন্ধ'),
+    ]),
+    ('Payouts', 'পেআউট', [
+      (key: 'holdDays', unit: '#', en: 'Hold period (days, for refunds)', bn: 'হোল্ড পিরিয়ড (দিন, রিফান্ডের সময়)'),
+      (key: 'minPayoutPaisa', unit: '৳', en: 'Minimum payout', bn: 'সর্বনিম্ন পেআউট'),
+    ]),
+  ];
+
+  final _c = <String, TextEditingController>{};
   final _day = TextEditingController();
   String _schedule = 'MONTHLY';
   bool _loaded = false;
 
+  static String _show(num v, String unit) {
+    final n = unit == '%' ? v / 100 : (unit == '৳' ? v / 100 : v);
+    return n == n.roundToDouble() ? '${n.toInt()}' : '$n';
+  }
+
   void _load(Map<String, dynamic> s) {
     if (_loaded) return;
     _loaded = true;
-    _course.text = '${(s['courseCommissionBps'] as int) / 100}';
-    _session.text = '${(s['sessionCommissionBps'] as int) / 100}';
-    _hold.text = '${s['holdDays']}';
-    _min.text = '${(s['minPayoutPaisa'] as int) ~/ 100}';
+    for (final (_, _, items) in _groups) {
+      for (final f in items) {
+        _c[f.key] = TextEditingController(text: s[f.key] == null ? '' : _show(s[f.key] as num, f.unit));
+      }
+    }
     _day.text = '${s['payoutDayOfMonth']}';
     _schedule = s['payoutSchedule'] as String;
   }
 
   Future<void> _save() async {
-    int bps(String v) => ((double.tryParse(v) ?? 0) * 100).round();
+    final body = <String, Object>{'payoutSchedule': _schedule, 'payoutDayOfMonth': int.tryParse(_day.text) ?? 1};
+    for (final (_, _, items) in _groups) {
+      for (final f in items) {
+        final v = double.tryParse(_c[f.key]!.text.trim());
+        if (v == null) continue;
+        body[f.key] = f.unit == '#' ? v.round() : (v * 100).round();
+      }
+    }
     try {
-      await ref.read(apiProvider).patch('/admin/settings', {
-        'courseCommissionBps': bps(_course.text),
-        'sessionCommissionBps': bps(_session.text),
-        'holdDays': int.tryParse(_hold.text) ?? 7,
-        'minPayoutPaisa': (int.tryParse(_min.text) ?? 0) * 100,
-        'payoutDayOfMonth': int.tryParse(_day.text) ?? 1,
-        'payoutSchedule': _schedule,
-      });
+      await ref.read(apiProvider).patch('/admin/settings', body);
+      ref.invalidate(settingsProvider);
       if (mounted) showMessage(context, t('Settings saved', 'সেটিংস সেভ হয়েছে'));
     } catch (e) {
       if (mounted) showMessage(context, e);
@@ -365,34 +411,43 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   @override
   Widget build(BuildContext context) {
     final s = ref.watch(settingsProvider);
-    Widget field(TextEditingController c, String label) => Padding(
+    Widget field(TextEditingController c, String label, String unit) => Padding(
           padding: const EdgeInsets.only(bottom: 12),
-          child: TextField(controller: c, keyboardType: TextInputType.number, decoration: InputDecoration(labelText: label)),
+          child: TextField(
+            controller: c,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            decoration: InputDecoration(labelText: label, suffixText: unit == '#' ? null : unit),
+          ),
         );
     return Scaffold(
-      appBar: AppBar(title: Text(t('Commission & payouts', 'কমিশন ও পেআউট'))),
+      appBar: AppBar(title: Text(t('Fees & rules', 'ফি ও নিয়ম')), actions: [TextButton(onPressed: _save, child: Text(t('Save', 'সেভ')))]),
       body: AsyncView(
         value: s,
         data: (data) {
           _load(data);
           return ListView(padding: const EdgeInsets.all(16), children: [
-            field(_course, t('Platform commission on course sales (%)', 'কোর্স বিক্রিতে প্ল্যাটফর্ম কমিশন (%)')),
-            field(_session, t('Platform commission on session bookings (%)', 'সেশন বুকিংয়ে প্ল্যাটফর্ম কমিশন (%)')),
-            field(_hold, t('Hold period (days, for refunds)', 'হোল্ড পিরিয়ড (দিন, রিফান্ডের সময়)')),
-            DropdownButtonFormField<String>(
-              initialValue: _schedule,
-              decoration: InputDecoration(labelText: t('Payout schedule', 'পেআউট শিডিউল')),
-              items: [
-                DropdownMenuItem(value: 'WEEKLY', child: Text(t('Weekly', 'সাপ্তাহিক'))),
-                DropdownMenuItem(value: 'MONTHLY', child: Text(t('Monthly', 'মাসিক'))),
-                DropdownMenuItem(value: 'MANUAL', child: Text(t('Manual', 'ম্যানুয়াল'))),
+            Text(t('Instructors see these rules before they apply. Changes apply to new sales.', 'ইন্সট্রাক্টররা আবেদনের আগে এই নিয়মগুলো দেখেন। পরিবর্তন নতুন বিক্রিতে প্রযোজ্য হবে।'),
+                style: Theme.of(context).textTheme.bodySmall),
+            for (final (en, bn, items) in _groups) ...[
+              SectionHeader(t(en, bn), padding: const EdgeInsets.fromLTRB(0, 20, 0, 10)),
+              for (final f in items) field(_c[f.key]!, t(f.en, f.bn), f.unit),
+              if (en == 'Payouts') ...[
+                DropdownButtonFormField<String>(
+                  initialValue: _schedule,
+                  decoration: InputDecoration(labelText: t('Payout schedule', 'পেআউট শিডিউল')),
+                  items: [
+                    DropdownMenuItem(value: 'WEEKLY', child: Text(t('Weekly', 'সাপ্তাহিক'))),
+                    DropdownMenuItem(value: 'MONTHLY', child: Text(t('Monthly', 'মাসিক'))),
+                    DropdownMenuItem(value: 'MANUAL', child: Text(t('Manual', 'ম্যানুয়াল'))),
+                  ],
+                  onChanged: (v) => setState(() => _schedule = v!),
+                ),
+                const SizedBox(height: 12),
+                if (_schedule == 'MONTHLY') field(_day, t('Payout day of the month (1–28)', 'মাসের কত তারিখে পেআউট (১–২৮)'), '#'),
               ],
-              onChanged: (v) => setState(() => _schedule = v!),
-            ),
-            const SizedBox(height: 12),
-            if (_schedule == 'MONTHLY') field(_day, t('Payout day of the month (1–28)', 'মাসের কত তারিখে পেআউট (১–২৮)')),
-            field(_min, t('Minimum payout (BDT)', 'সর্বনিম্ন পেআউট (টাকা)')),
-            FilledButton(onPressed: _save, child: Padding(padding: EdgeInsets.all(12), child: Text(t('Save', 'সেভ করুন')))),
+            ],
+            const SizedBox(height: 8),
+            FilledButton(onPressed: _save, child: Padding(padding: const EdgeInsets.all(12), child: Text(t('Save', 'সেভ করুন')))),
           ]);
         },
       ),

@@ -11,6 +11,9 @@ class Me {
   List<String> get roles => (json['roles'] as List).cast<String>();
   bool get isAdmin => roles.contains('ADMIN');
   bool get isTeacher => roles.contains('TEACHER');
+  /// Free course pass from inviting friends, while it lasts.
+  bool get hasFreePass => json['freePassUntil'] != null && DateTime.parse(json['freePassUntil'] as String).isAfter(DateTime.now());
+  bool get isAffiliate => roles.contains('AFFILIATE');
   bool get isEmployer => roles.contains('EMPLOYER');
   bool get isSeeker => roles.contains('JOB_SEEKER');
 }
@@ -53,10 +56,11 @@ class AuthController extends Notifier<AuthState> {
     await reload();
   }
 
-  Future<void> register({required String name, required String identifier, required String password}) async {
+  Future<void> register({required String name, required String identifier, required String password, String? ref}) async {
     final body = {
       'name': name,
       'password': password,
+      if (ref != null && ref.isNotEmpty) 'ref': ref,
       if (identifier.contains('@')) 'email': identifier else 'phone': identifier,
     };
     await _api.saveTokens(await _api.post('/auth/register', body));

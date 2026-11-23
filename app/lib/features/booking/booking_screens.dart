@@ -52,7 +52,7 @@ class _BookSessionScreenState extends ConsumerState<BookSessionScreen> with Widg
       if (o['status'] == 'PAID') {
         _pendingOrder = null;
         if (mounted) {
-          showMessage(context, t('Session confirmed!', 'সেশন নিশ্চিত হয়েছে!'));
+          showMessage(context, t('Paid. Request sent: the instructor will accept or decline soon.', 'পেমেন্ট হয়েছে। রিকোয়েস্ট পাঠানো হয়েছে: ইনস্ট্রাক্টর শিগগিরই গ্রহণ বা বাতিল করবেন।'));
           context.go('/learning?tab=sessions');
         }
         return;
@@ -71,7 +71,7 @@ class _BookSessionScreenState extends ConsumerState<BookSessionScreen> with Widg
       final res = await ref.read(apiProvider).post<Map<String, dynamic>>('/bookings', {'teacherId': widget.teacherId, 'startAt': slot['startAt']});
       if (res['gatewayUrl'] == null) {
         if (mounted) {
-          showMessage(context, t('Free session confirmed!', 'ফ্রি সেশন নিশ্চিত হয়েছে!'));
+          showMessage(context, t('Request sent: the instructor will accept or decline soon.', 'রিকোয়েস্ট পাঠানো হয়েছে: ইনস্ট্রাক্টর শিগগিরই গ্রহণ বা বাতিল করবেন।'));
           context.go('/learning?tab=sessions');
         }
         return;
@@ -140,7 +140,7 @@ class _BookSessionScreenState extends ConsumerState<BookSessionScreen> with Widg
 final myBookingsProvider = FutureProvider.autoDispose<List<dynamic>>((ref) => ref.read(apiProvider).get('/me/bookings'));
 final teacherBookingsProvider = FutureProvider.autoDispose<List<dynamic>>((ref) => ref.read(apiProvider).get('/teacher/bookings'));
 
-Map<String, String> get _status => {'CONFIRMED': t('Confirmed', 'নিশ্চিত'), 'COMPLETED': t('Completed', 'সম্পন্ন'), 'CANCELLED': t('Cancel', 'বাতিল'), 'NO_SHOW': t('No-show', 'অনুপস্থিত')};
+Map<String, String> get _status => {'REQUESTED': t('Waiting for the instructor', 'ইনস্ট্রাক্টরের উত্তরের অপেক্ষায়'), 'HELD': t('Awaiting payment', 'পেমেন্টের অপেক্ষায়'), 'CONFIRMED': t('Confirmed', 'নিশ্চিত'), 'COMPLETED': t('Completed', 'সম্পন্ন'), 'CANCELLED': t('Cancel', 'বাতিল'), 'NO_SHOW': t('No-show', 'অনুপস্থিত')};
 
 /// A session card with Join (opens 15 minutes before), cancel, complete and review actions.
 class BookingTile extends ConsumerWidget {
@@ -182,6 +182,8 @@ class BookingTile extends ConsumerWidget {
     final now = DateTime.now();
     final status = b['status'] as String;
     final confirmed = status == 'CONFIRMED';
+    final requested = status == 'REQUESTED';
+    final respondBy = b['respondBy'] == null ? null : DateTime.parse(b['respondBy'] as String).toLocal();
     final canJoin = confirmed && now.isAfter(start.subtract(Duration(minutes: 15))) && now.isBefore(end.add(Duration(minutes: 30)));
     final started = now.isAfter(start);
     final other = (asTeacher ? b['student'] : b['teacher']) as Map<String, dynamic>;
@@ -190,9 +192,40 @@ class BookingTile extends ConsumerWidget {
         ListTile(
           leading: const Icon(Icons.video_call_outlined),
           title: Text(other['name'] as String),
-          subtitle: Text('${_full.format(start)} – ${_time.format(end)} · ${_status[status] ?? status}'),
+          subtitle: Text('${_full.format(start)} – ${_time.format(end)} · ${_status[status] ?? status}'
+              '${(b['pricePaisa'] ?? 0) == 0 ? '' : ' · ${taka(b['pricePaisa'] as int)}'}'),
         ),
+        if (requested && respondBy != null)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+            child: Text(
+              asTeacher
+                  ? t('Accept or decline by ${_full.format(respondBy)}, or it is declined and the student refunded.', '${_full.format(respondBy)}-এর মধ্যে গ্রহণ বা বাতিল করুন, না হলে বাতিল হয়ে স্টুডেন্ট টাকা ফেরত পাবে।')
+                  : t('The instructor answers by ${_full.format(respondBy)}. If declined, you get a full refund.', 'ইনস্ট্রাক্টর ${_full.format(respondBy)}-এর মধ্যে উত্তর দেবেন। বাতিল হলে পুরো টাকা ফেরত পাবেন।'),
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ),
         OverflowBar(alignment: MainAxisAlignment.end, spacing: 4, children: [
+          if (asTeacher && requested) ...[
+            TextButton(
+              onPressed: () async {
+                final note = await _ask(context, t('Decline this request?', 'রিকোয়েস্টটি বাতিল করবেন?'), t('Reason for the student (optional)', 'স্টুডেন্টের জন্য কারণ (ঐচ্ছিক)'));
+                if (note != null && context.mounted) {
+                  await _act(context, ref, () => api.post('/teacher/bookings/${b['id']}/decline', {'note': note}), t('Declined. The student is refunded.', 'বাতিল করা হয়েছে। স্টুডেন্ট টাকা ফেরত পাবে।'));
+                }
+              },
+              child: Text(t('Decline', 'বাতিল')),
+            ),
+            FilledButton(
+              onPressed: () => _act(context, ref, () => api.post('/teacher/bookings/${b['id']}/accept'), t('Accepted. The session is confirmed.', 'গ্রহণ করা হয়েছে। সেশন নিশ্চিত।')),
+              child: Text(t('Accept', 'গ্রহণ করুন')),
+            ),
+          ],
+          if (!asTeacher && requested)
+            TextButton(
+              onPressed: () => _act(context, ref, () => api.post('/bookings/${b['id']}/cancel'), t('Request cancelled', 'রিকোয়েস্ট বাতিল হয়েছে')),
+              child: Text(t('Cancel request', 'রিকোয়েস্ট বাতিল')),
+            ),
           if (confirmed && !started)
             TextButton(
               onPressed: () => _act(context, ref, () => api.post('/bookings/${b['id']}/cancel'), t('Session cancelled', 'সেশন বাতিল হয়েছে')),
@@ -340,7 +373,15 @@ class _AvailabilityScreenState extends ConsumerState<AvailabilityScreen> {
               onChanged: (v) => set(() => slot = v!),
             ),
             const SizedBox(height: 12),
-            TextField(controller: price, keyboardType: TextInputType.number, decoration: InputDecoration(labelText: t('Price per session (BDT, 0 = free)', 'প্রতি সেশনের দাম (টাকা, ০ = ফ্রি)'))),
+            TextField(
+              controller: price,
+              keyboardType: TextInputType.number,
+              decoration: InputDecoration(
+                labelText: t('Price per session (BDT, 0 = free)', 'প্রতি সেশনের দাম (টাকা, ০ = ফ্রি)'),
+                helperMaxLines: 3,
+                helperText: t('If you set an hourly rate in your profile, paid sessions are priced by their length.', 'প্রোফাইলে ঘণ্টাপ্রতি রেট দিলে পেইড সেশনের দাম সময়ের দৈর্ঘ্য অনুযায়ী হবে।'),
+              ),
+            ),
           ]),
           actions: [
             TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(t('Cancel', 'বাতিল'))),

@@ -13,6 +13,7 @@ import '../../core/theme.dart';
 import '../../core/widgets.dart';
 import 'package:video_player/video_player.dart';
 import '../home/home_screen.dart';
+import 'instructor_screens.dart';
 
 Map<String, String> get _statusText => {
   'PENDING': t('In review', 'রিভিউতে আছে'),
@@ -44,6 +45,7 @@ class _TeacherApplyScreenState extends ConsumerState<TeacherApplyScreen> {
   final _links = <(TextEditingController, TextEditingController)>[(TextEditingController(), TextEditingController())];
   bool _busy = false;
   bool _prefilled = false;
+  bool _accepted = false;
 
   void _prefill(Map<String, dynamic>? app) {
     if (_prefilled || app == null) return;
@@ -57,9 +59,14 @@ class _TeacherApplyScreenState extends ConsumerState<TeacherApplyScreen> {
 
   Future<void> _submit() async {
     if (!_form.currentState!.validate()) return;
+    if (!_accepted) {
+      showMessage(context, t('Please read and accept the instructor rules first.', 'আগে ইনস্ট্রাক্টরের নিয়মগুলো পড়ে সম্মতি দিন।'));
+      return;
+    }
     setState(() => _busy = true);
     try {
       await ref.read(apiProvider).post('/teacher-applications', {
+        'acceptRules': true,
         'headline': _headline.text.trim(),
         'bio': _bio.text.trim(),
         'skills': _skills.text.split(',').map((s) => s.trim()).where((s) => s.isNotEmpty).toList(),
@@ -134,7 +141,9 @@ class _TeacherApplyScreenState extends ConsumerState<TeacherApplyScreen> {
                 label: Text(t('Add another link', 'আরেকটি লিংক')),
               ),
               const SizedBox(height: 16),
-              FilledButton(onPressed: _busy ? null : _submit, child: Padding(padding: EdgeInsets.all(12), child: Text(t('Submit application', 'আবেদন জমা দিন')))),
+              InstructorRulesCard(accepted: _accepted, onChanged: (v) => setState(() => _accepted = v)),
+              const SizedBox(height: 16),
+              FilledButton(onPressed: _busy || !_accepted ? null : _submit, child: Padding(padding: EdgeInsets.all(12), child: Text(t('Accept rules and submit', 'নিয়ম মেনে আবেদন জমা দিন')))),
             ]),
           );
         },
@@ -186,6 +195,9 @@ class TeacherDashboard extends ConsumerWidget {
             ]),
             if (isTeacher) ...[
               const SizedBox(height: 12),
+              const InstructorStatusCards(),
+              const BookingRequestsCard(),
+              const SizedBox(height: 12),
               Row(children: [
                 Expanded(
                   child: Panel(
@@ -205,6 +217,30 @@ class TeacherDashboard extends ConsumerWidget {
                       const IconBadge(Icons.account_balance_wallet_outlined, size: 36, color: Brand.orangeStrong),
                       const SizedBox(width: 10),
                       Expanded(child: Text(t('Earnings', 'আয়'), style: text.titleSmall)),
+                    ]),
+                  ),
+                ),
+              ]),
+              const SizedBox(height: 10),
+              Row(children: [
+                Expanded(
+                  child: Panel(
+                    onTap: () => context.push('/teacher/profile'),
+                    child: Row(children: [
+                      const IconBadge(Icons.badge_outlined, size: 36),
+                      const SizedBox(width: 10),
+                      Expanded(child: Text(t('Bio & expertise', 'বায়ো ও দক্ষতা'), style: text.titleSmall)),
+                    ]),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Panel(
+                    onTap: () => context.push('/teacher/availability'),
+                    child: Row(children: [
+                      const IconBadge(Icons.schedule_rounded, size: 36, color: Brand.orangeStrong),
+                      const SizedBox(width: 10),
+                      Expanded(child: Text(t('Schedule', 'সময়সূচি'), style: text.titleSmall)),
                     ]),
                   ),
                 ),
@@ -371,7 +407,24 @@ class CourseEditorScreen extends ConsumerWidget {
       if (context.mounted) showMessage(context, t('Video uploaded ✓', 'ভিডিও আপলোড হয়েছে ✓'));
       unawaited(_detectLength(ref, lessonId));
     } on DioException catch (e) {
-      if (context.mounted) showMessage(context, ApiError.from(e));
+      final err = ApiError.from(e);
+      if (err.body?['code'] == 'STORAGE_LIMIT' && context.mounted) {
+        final go = await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            icon: const Icon(Icons.cloud_upload_outlined),
+            title: Text(t('Storage is full', 'স্টোরেজ ভরে গেছে')),
+            content: Text(t('Your plan\'s video limit is reached. Get a storage plan to upload more videos.', 'আপনার প্ল্যানের ভিডিও সীমা শেষ। আরও ভিডিও আপলোড করতে স্টোরেজ প্ল্যান নিন।')),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(t('Later', 'পরে'))),
+              FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Text(t('See plans', 'প্ল্যান দেখুন'))),
+            ],
+          ),
+        );
+        if (go == true && context.mounted) unawaited(context.push('/teacher/storage'));
+      } else if (context.mounted) {
+        showMessage(context, err);
+      }
     } catch (e) {
       if (context.mounted) showMessage(context, e);
     } finally {
@@ -750,6 +803,9 @@ class _CourseDetailsFormState extends ConsumerState<CourseDetailsForm> {
   Widget build(BuildContext context) {
     final cats = ref.watch(categoriesProvider).value ?? const [];
     final text = Theme.of(context).textTheme;
+    final isAdmin = ref.watch(authProvider).me?.isAdmin ?? false;
+    final status = isAdmin ? null : ref.watch(teacherStatusProvider).value;
+    final canSell = isAdmin || status == null || status['verification']['canSellPaid'] == true;
     Widget gap() => const SizedBox(height: 14);
     return Scaffold(
       appBar: AppBar(title: Text(widget.course == null ? t('New course', 'নতুন কোর্স') : t('Course details', 'কোর্সের তথ্য'))),
@@ -821,10 +877,25 @@ class _CourseDetailsFormState extends ConsumerState<CourseDetailsForm> {
             ),
           ]),
           gap(),
+          if (!canSell)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: Panel(
+                onTap: () => context.push('/teacher'),
+                child: Row(children: [
+                  const BlueTick(size: 22),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(t('New instructors start with free courses. Paid pricing opens when you get the blue tick.', 'নতুন ইনস্ট্রাক্টররা ফ্রি কোর্স দিয়ে শুরু করেন। ব্লু টিক পেলে কোর্সে দাম বসাতে পারবেন।')),
+                  ),
+                ]),
+              ),
+            ),
           Row(children: [
             Expanded(
               child: TextFormField(
                 controller: _price,
+                enabled: canSell,
                 keyboardType: TextInputType.number,
                 decoration: InputDecoration(labelText: t('Price (৳, 0 = free)', 'দাম (৳, ০ = ফ্রি)')),
               ),
@@ -833,6 +904,7 @@ class _CourseDetailsFormState extends ConsumerState<CourseDetailsForm> {
             Expanded(
               child: TextFormField(
                 controller: _was,
+                enabled: canSell,
                 keyboardType: TextInputType.number,
                 decoration: InputDecoration(labelText: t('Was price (optional)', 'আগের দাম (ঐচ্ছিক)')),
               ),

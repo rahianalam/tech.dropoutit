@@ -76,7 +76,7 @@ export class AdminController {
       },
       take: 100,
       orderBy: { createdAt: 'desc' },
-      select: { id: true, name: true, email: true, phone: true, status: true, createdAt: true, roles: { select: { role: true } } },
+      select: { id: true, name: true, email: true, phone: true, status: true, createdAt: true, roles: { select: { role: true } }, teacherProfile: { select: { verifiedAt: true } } },
     });
   }
 

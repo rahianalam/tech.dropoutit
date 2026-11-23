@@ -324,6 +324,7 @@ Map<String, String> get roleText => {
       'TEACHER': t('Teacher', 'টিচার'),
       'STUDENT': t('Student', 'স্টুডেন্ট'),
       'EMPLOYER': t('Employer', 'নিয়োগদাতা'),
+      'AFFILIATE': t('Affiliate', 'অ্যাফিলিয়েট'),
       'JOB_SEEKER': t('Job seeker', 'চাকরিপ্রার্থী'),
     };
 
@@ -366,7 +367,7 @@ class _UsersScreenState extends ConsumerState<UsersScreen> {
         SizedBox(
           height: 52,
           child: ListView(scrollDirection: Axis.horizontal, padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8), children: [
-            for (final r in [null, 'TEACHER', 'STUDENT', 'EMPLOYER', 'ADMIN'])
+            for (final r in [null, 'TEACHER', 'STUDENT', 'AFFILIATE', 'EMPLOYER', 'ADMIN'])
               Padding(
                 padding: const EdgeInsets.only(right: 8),
                 child: ChoiceChip(label: Text(r == null ? t('All', 'সব') : roleText[r]!), selected: _role == r, onSelected: (_) => setState(() => _role = r)),
@@ -408,6 +409,8 @@ class _UsersScreenState extends ConsumerState<UsersScreen> {
                                   onSelected: (v) => switch (v) {
                                     'teacher+' => _act(() => api.patch('/admin/users/$id/roles', {'add': ['TEACHER']}), t('Now a teacher', 'এখন টিচার')),
                                     'teacher-' => _act(() => api.patch('/admin/users/$id/roles', {'remove': ['TEACHER']}), t('Teacher role removed', 'টিচার রোল সরানো হয়েছে')),
+                                    'tick+' => _act(() => api.post('/admin/teachers/$id/verify', {'verified': true}), t('Blue tick given', 'ব্লু টিক দেওয়া হয়েছে')),
+                                    'tick-' => _act(() => api.post('/admin/teachers/$id/verify', {'verified': false}), t('Blue tick removed', 'ব্লু টিক সরানো হয়েছে')),
                                     'admin+' => _act(() => api.patch('/admin/users/$id/roles', {'add': ['ADMIN']}), t('Now an admin', 'এখন অ্যাডমিন')),
                                     'admin-' => _act(() => api.patch('/admin/users/$id/roles', {'remove': ['ADMIN']}), t('Admin role removed', 'অ্যাডমিন রোল সরানো হয়েছে')),
                                     'block' => _act(() => api.patch('/admin/users/$id/status', {'status': 'BLOCKED'}), t('User blocked', 'ইউজার ব্লক হয়েছে')),
@@ -417,6 +420,10 @@ class _UsersScreenState extends ConsumerState<UsersScreen> {
                                     roles.contains('TEACHER')
                                         ? PopupMenuItem(value: 'teacher-', child: Text(t('Remove teacher role', 'টিচার রোল সরান')))
                                         : PopupMenuItem(value: 'teacher+', child: Text(t('Make teacher', 'টিচার বানান'))),
+                                    if (roles.contains('TEACHER'))
+                                      u['teacherProfile']?['verifiedAt'] != null
+                                          ? PopupMenuItem(value: 'tick-', child: Text(t('Remove blue tick', 'ব্লু টিক সরান')))
+                                          : PopupMenuItem(value: 'tick+', child: Text(t('Give blue tick (can sell paid)', 'ব্লু টিক দিন (পেইড বিক্রি করতে পারবে)'))),
                                     roles.contains('ADMIN')
                                         ? PopupMenuItem(value: 'admin-', child: Text(t('Remove admin role', 'অ্যাডমিন রোল সরান')))
                                         : PopupMenuItem(value: 'admin+', child: Text(t('Make admin', 'অ্যাডমিন বানান'))),
