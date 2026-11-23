@@ -37,6 +37,12 @@ export class TeachersController {
   }
 
   @Public()
+  @Get('teachers')
+  all() {
+    return this.teachers.list();
+  }
+
+  @Public()
   @Get('teachers/:id')
   profile(@Param('id', ParseUUIDPipe) id: string) {
     return this.teachers.publicProfile(id);

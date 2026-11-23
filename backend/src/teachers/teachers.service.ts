@@ -118,12 +118,38 @@ export class TeachersService {
             name: true,
             avatarUrl: true,
             portfolioItems: { where: { type: { not: 'CV' } } },
-            courses: { where: { status: 'PUBLISHED' }, select: { id: true, title: true, thumbnailUrl: true, pricePaisa: true, isFree: true, ratingAvg: true, ratingCount: true } },
+            courses: {
+              where: { status: 'PUBLISHED' },
+              select: {
+                id: true, title: true, subtitle: true, thumbnailUrl: true, pricePaisa: true, originalPricePaisa: true, isFree: true, ratingAvg: true, ratingCount: true,
+                level: true, teacher: { select: { id: true, name: true } }, category: { select: { name: true, slug: true, color: true, icon: true } },
+              },
+            },
           },
         },
       },
     });
     if (!profile) throw new NotFoundException('Teacher not found');
-    return profile;
+    const students = await this.prisma.enrollment.count({ where: { course: { teacherId: userId }, status: 'ACTIVE' } });
+    return { ...profile, stats: { students, courses: profile.user.courses.length } };
+  }
+
+  /** Public list of instructors with live courses, most students first (home screen "mentors" row). */
+  async list() {
+    const teachers = await this.prisma.teacherProfile.findMany({
+      where: { user: { status: 'ACTIVE', roles: { some: { role: 'TEACHER' } }, courses: { some: { status: 'PUBLISHED' } } } },
+      select: { headline: true, skills: true, user: { select: { id: true, name: true, avatarUrl: true, _count: { select: { courses: { where: { status: 'PUBLISHED' } } } } } } },
+      take: 30,
+    });
+    const counts = await this.prisma.enrollment.groupBy({ by: ['courseId'], where: { status: 'ACTIVE' }, _count: { _all: true } });
+    const courses = await this.prisma.course.findMany({ where: { id: { in: counts.map((c) => c.courseId) } }, select: { id: true, teacherId: true } });
+    const byTeacher = new Map<string, number>();
+    for (const c of counts) {
+      const t = courses.find((x) => x.id === c.courseId)?.teacherId;
+      if (t) byTeacher.set(t, (byTeacher.get(t) ?? 0) + c._count._all);
+    }
+    return teachers
+      .map((t) => ({ id: t.user.id, name: t.user.name, avatarUrl: t.user.avatarUrl, headline: t.headline, skills: t.skills, courses: t.user._count.courses, students: byTeacher.get(t.user.id) ?? 0 }))
+      .sort((a, b) => b.students - a.students);
   }
 }

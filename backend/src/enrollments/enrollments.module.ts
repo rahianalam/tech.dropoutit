@@ -36,12 +36,41 @@ export class EnrollmentsService {
     });
   }
 
-  mine(userId: string) {
-    return this.prisma.enrollment.findMany({
+  /** My courses, most recently studied first, each with the lesson to resume from. */
+  async mine(userId: string) {
+    const rows = await this.prisma.enrollment.findMany({
       where: { userId, status: 'ACTIVE' },
-      orderBy: { createdAt: 'desc' },
-      include: { course: { select: { id: true, title: true, thumbnailUrl: true, teacher: { select: { name: true } } } } },
+      include: {
+        course: {
+          select: {
+            id: true, title: true, thumbnailUrl: true, teacher: { select: { name: true } },
+            category: { select: { name: true, color: true, icon: true } },
+            sections: { orderBy: { position: 'asc' }, select: { lessons: { orderBy: { position: 'asc' }, select: { id: true, title: true } } } },
+          },
+        },
+        progress: { select: { lessonId: true, completed: true, updatedAt: true } },
+      },
     });
+    const last = (r: (typeof rows)[number]) => Math.max(r.createdAt.getTime(), ...r.progress.map((p) => p.updatedAt.getTime()));
+    return rows
+      .map((r) => ({ r, at: last(r) }))
+      .sort((a, b) => b.at - a.at)
+      .map(({ r: { course: { sections, ...course }, progress, ...e }, at }) => {
+        const lessons = sections.flatMap((s) => s.lessons);
+        const done = new Set(progress.filter((p) => p.completed).map((p) => p.lessonId));
+        const next = lessons.find((l) => !done.has(l.id)) ?? lessons[0];
+        return { ...e, course, lessonCount: lessons.length, completedCount: done.size, resumeLesson: next ?? null, lastActivityAt: new Date(at) };
+      });
+  }
+
+  /** Which lessons of a course I've finished (for the player and the curriculum checkmarks). */
+  async courseProgress(userId: string, courseId: string) {
+    const e = await this.prisma.enrollment.findUnique({
+      where: { userId_courseId: { userId, courseId } },
+      include: { progress: { select: { lessonId: true, completed: true, watchedSec: true } } },
+    });
+    if (!e || e.status !== 'ACTIVE') return { enrolled: false, progressPct: 0, lessons: [] };
+    return { enrolled: true, progressPct: e.progressPct, lessons: e.progress };
   }
 
   /** Saves lesson progress and recomputes the course percentage. 90% watched counts as complete. */
@@ -81,6 +110,9 @@ export class EnrollmentsController {
 
   @Get('me/enrollments')
   mine(@CurrentUser() u: AuthUser) { return this.enrollments.mine(u.id); }
+
+  @Get('me/courses/:id/progress')
+  courseProgress(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() u: AuthUser) { return this.enrollments.courseProgress(u.id, id); }
 
   @Post('lessons/:id/progress')
   progress(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() u: AuthUser, @Body() dto: ProgressDto) {
