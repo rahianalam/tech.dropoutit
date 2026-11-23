@@ -37,7 +37,16 @@ Phase 3 (1:1 sessions) — done:
 - Earnings use the session commission and the same hold and payout flow as courses
 - Students rate sessions and courses; either side can report a problem to the admin
 
-Next: phase 4 jobs, phase 5 release.
+Phase 4 (jobs) — done:
+
+- Anyone can create a company profile and post jobs; jobs from unverified companies wait for admin review (edits go back to review too), verified companies go live at once
+- Job seekers make a profile with skills and a CV (PDF upload, max 5 MB, checked by file signature, or a link)
+- CVs are never public: they are stored in `UPLOAD_DIR` and opened through signed links that expire after 15 minutes
+- Jobs list with search and type filter; a signed-in seeker sees jobs matching their skills first
+- One application per job; the employer sees CV, skills, portfolio, cover letter and courses finished on Tech.Dropout, moves applicants through stages (new → shortlisted → interview → hired / rejected) and keeps private notes; the seeker is notified at each stage
+- Jobs close themselves after the deadline
+
+Next: phase 5 release (push notifications, store builds).
 The full data model for those phases is already in `backend/prisma/schema.prisma`.
 
 ## Run locally

@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:techdropout/core/auth.dart';
 import 'package:techdropout/core/format.dart';
 import 'package:techdropout/core/router.dart';
 
@@ -14,6 +15,11 @@ void main() {
   });
 
   test('tabs follow roles', () {
-    expect(tabsFor(null).length, 3);
+    expect(tabsFor(null).map((t) => t.path), ['/', '/learning', '/jobs', '/profile']);
+    final teacher = Me({'id': 't', 'name': 'T', 'roles': ['STUDENT', 'TEACHER']});
+    expect(tabsFor(teacher).map((t) => t.path), contains('/teacher'));
+    final admin = Me({'id': 'a', 'name': 'A', 'roles': ['ADMIN', 'TEACHER']});
+    expect(tabsFor(admin).length, 5);
+    expect(tabsFor(admin).map((t) => t.path), isNot(contains('/teacher')));
   });
 }

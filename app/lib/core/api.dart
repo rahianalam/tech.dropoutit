@@ -73,6 +73,7 @@ class Api {
       _call(() => dio.get(path, queryParameters: query));
   Future<T> post<T>(String path, [Object? data]) => _call(() => dio.post(path, data: data));
   Future<T> patch<T>(String path, [Object? data]) => _call(() => dio.patch(path, data: data));
+  Future<T> put<T>(String path, [Object? data]) => _call(() => dio.put(path, data: data));
   Future<T> delete<T>(String path) => _call(() => dio.delete(path));
 
   Future<T> _call<T>(Future<Response> Function() fn) async {

@@ -11,6 +11,8 @@ class Me {
   List<String> get roles => (json['roles'] as List).cast<String>();
   bool get isAdmin => roles.contains('ADMIN');
   bool get isTeacher => roles.contains('TEACHER');
+  bool get isEmployer => roles.contains('EMPLOYER');
+  bool get isSeeker => roles.contains('JOB_SEEKER');
 }
 
 class AuthState {
