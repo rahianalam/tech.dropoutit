@@ -2,6 +2,7 @@ import { Controller, Get, Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
 import { JwtModule } from '@nestjs/jwt';
+import { ScheduleModule } from '@nestjs/schedule';
 import { AdminModule } from './admin/admin.module';
 import { AuthModule } from './auth/auth.module';
 import { CategoriesModule } from './categories/categories.module';
@@ -13,6 +14,8 @@ import { PrismaModule } from './prisma/prisma.module';
 import { SettingsModule } from './settings/settings.module';
 import { TeachersModule } from './teachers/teachers.module';
 import { NotificationsModule } from './users/notifications.module';
+import { PaymentsModule } from './payments/payments.module';
+import { PayoutsModule } from './payouts/payouts.module';
 
 @Controller()
 class HealthController {
@@ -23,6 +26,7 @@ class HealthController {
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
     JwtModule.register({ global: true }),
+    ScheduleModule.forRoot(),
     PrismaModule,
     AuthModule,
     TeachersModule,
@@ -32,6 +36,8 @@ class HealthController {
     SettingsModule,
     AdminModule,
     NotificationsModule,
+    PaymentsModule,
+    PayoutsModule,
   ],
   controllers: [HealthController],
   providers: [{ provide: APP_GUARD, useClass: AuthGuard }],

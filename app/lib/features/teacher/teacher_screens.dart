@@ -181,7 +181,10 @@ class TeacherDashboard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final courses = ref.watch(myCoursesProvider);
     return Scaffold(
-      appBar: AppBar(title: Text(title)),
+      appBar: AppBar(title: Text(title), actions: [
+        if (ref.watch(authProvider).me?.isTeacher ?? false)
+          TextButton.icon(onPressed: () => context.push('/teacher/earnings'), icon: const Icon(Icons.account_balance_wallet_outlined), label: const Text('আমার আয়')),
+      ]),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _create(context, ref),
         icon: const Icon(Icons.add),

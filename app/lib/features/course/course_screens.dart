@@ -1,8 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:video_player/video_player.dart';
-import '../../core/api.dart';
 import '../../core/auth.dart';
 import '../../core/format.dart';
 import '../../core/widgets.dart';
@@ -10,29 +10,78 @@ import '../../core/widgets.dart';
 final courseProvider = FutureProvider.autoDispose.family<Map<String, dynamic>, String>(
     (ref, id) => ref.read(apiProvider).get('/courses/$id'));
 
-class CourseDetailScreen extends ConsumerWidget {
+class CourseDetailScreen extends ConsumerStatefulWidget {
   const CourseDetailScreen(this.id, {super.key});
   final String id;
+  @override
+  ConsumerState<CourseDetailScreen> createState() => _CourseDetailScreenState();
+}
 
-  Future<void> _enroll(BuildContext context, WidgetRef ref) async {
-    if (!ref.read(authProvider).loggedIn) return context.go('/login');
-    try {
-      await ref.read(apiProvider).post('/courses/$id/enroll');
-      ref.invalidate(courseProvider(id));
-      if (context.mounted) showMessage(context, 'এনরোল সম্পন্ন! এখন শেখা শুরু করুন।');
-    } on ApiError catch (e) {
-      if (!context.mounted) return;
-      if (e.status == 402) {
-        // Payments arrive in phase 2 (SSLCommerz checkout).
-        showMessage(context, 'পেইড কোর্স: পেমেন্ট শীঘ্রই চালু হচ্ছে (${taka(e.body?['pricePaisa'] as int? ?? 0)})');
-      } else {
-        showMessage(context, e);
+class _CourseDetailScreenState extends ConsumerState<CourseDetailScreen> with WidgetsBindingObserver {
+  String get id => widget.id;
+  String? _pendingOrder;
+  bool _busy = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  /// When the user comes back from the payment page, check the order a few times.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && _pendingOrder != null) _checkOrder();
+  }
+
+  Future<void> _checkOrder() async {
+    final orderId = _pendingOrder;
+    if (orderId == null) return;
+    for (var i = 0; i < 6; i++) {
+      final o = await ref.read(apiProvider).get<Map<String, dynamic>>('/orders/$orderId');
+      if (o['status'] == 'PAID') {
+        _pendingOrder = null;
+        ref.invalidate(courseProvider(id));
+        if (mounted) showMessage(context, 'পেমেন্ট সফল! কোর্স শুরু করুন।');
+        return;
       }
+      if (o['status'] != 'PENDING') break;
+      await Future<void>.delayed(const Duration(seconds: 2));
+    }
+    if (mounted) showMessage(context, 'পেমেন্ট এখনো নিশ্চিত হয়নি। টাকা কেটে থাকলে কিছুক্ষণের মধ্যে আপডেট হবে।');
+  }
+
+  Future<void> _enroll(Map<String, dynamic> course) async {
+    if (!ref.read(authProvider).loggedIn) return context.go('/login');
+    setState(() => _busy = true);
+    try {
+      final api = ref.read(apiProvider);
+      if (course['isFree'] == true) {
+        await api.post('/courses/$id/enroll');
+        ref.invalidate(courseProvider(id));
+        if (mounted) showMessage(context, 'এনরোল সম্পন্ন! এখন শেখা শুরু করুন।');
+      } else {
+        // Paid: open the SSLCommerz page (bKash, Nagad, card…). Enrollment happens
+        // on the server once the gateway confirms the payment.
+        final checkout = await api.post<Map<String, dynamic>>('/checkout/course/$id');
+        _pendingOrder = checkout['orderId'] as String;
+        await launchUrl(Uri.parse(checkout['gatewayUrl'] as String), mode: LaunchMode.externalApplication);
+      }
+    } catch (e) {
+      if (mounted) showMessage(context, e);
+    } finally {
+      if (mounted) setState(() => _busy = false);
     }
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final course = ref.watch(courseProvider(id));
     return Scaffold(
       appBar: AppBar(),
@@ -55,7 +104,7 @@ class CourseDetailScreen extends ConsumerWidget {
             Text('${c['_count']['enrollments']} জন শিখছে'),
             const SizedBox(height: 16),
             FilledButton(
-              onPressed: enrolled ? null : () => _enroll(context, ref),
+              onPressed: enrolled || _busy ? null : () => _enroll(c),
               child: Padding(
                 padding: const EdgeInsets.all(12),
                 child: Text(enrolled ? 'আপনি এনরোলড' : (c['isFree'] == true ? 'ফ্রি এনরোল করুন' : 'কিনুন ${price(c)}')),

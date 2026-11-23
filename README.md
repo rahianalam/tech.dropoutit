@@ -19,7 +19,15 @@ Phase 1 (foundation) — done:
 - Free enrollment, lesson access control with signed media URLs, progress tracking
 - Admin: stats, user block/unblock, commission and payout settings (all editable)
 
-Next: phase 2 payments (SSLCommerz / bKash, teacher ledger and payouts), phase 3 session booking, phase 4 jobs.
+Phase 2 (payments) — done:
+
+- Paid courses through SSLCommerz hosted checkout (bKash, Nagad, Rocket, cards); every payment is verified with SSLCommerz before access is given, and fulfilment is idempotent
+- Teacher ledger: share = (price − gateway fee) × (1 − commission), held for the admin's hold period, then withdrawable
+- Payouts drafted automatically on the admin's schedule (weekly on Sunday / monthly on a chosen day / manual); admin approves, sends the money and records the reference
+- Refunds remove access and void or claw back the teacher's earning
+- The admin's own official courses earn no teacher payout
+
+Next: phase 3 session booking, phase 4 jobs, phase 5 release.
 The full data model for those phases is already in `backend/prisma/schema.prisma`.
 
 ## Run locally
@@ -41,6 +49,13 @@ cd ../app
 flutter pub get
 flutter run --dart-define=API_URL=http://10.0.2.2:3000/api/v1   # Android emulator
 ```
+
+## Payments
+
+Set `PAYMENT_GATEWAY=sslcommerz`, `SSLCZ_STORE_ID`, `SSLCZ_STORE_PASSWORD` and `PUBLIC_API_URL` in `backend/.env`.
+Use `SSLCZ_BASE_URL=https://sandbox.sslcommerz.com` with sandbox credentials, then `https://securepay.sslcommerz.com` for live.
+In the SSLCommerz merchant panel set the IPN URL to `https://api.tech.dropout.it/api/v1/payments/sslcommerz/ipn`.
+For local testing without SSLCommerz use `PAYMENT_GATEWAY=fake`.
 
 ## Deploy (one VPS)
 

@@ -297,10 +297,14 @@ model Order {
   discountPaisa Int           @default(0)
   status        OrderStatus   @default(PENDING)
   tranId        String        @unique
+  paidAt        DateTime?
+  refundedAt    DateTime?
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
   user          User          @relation(fields: [userId], references: [id])
   payments      Payment[]
+
+  @@index([status, createdAt])
   enrollment    Enrollment?
   booking       Booking?
   ledgerEntries LedgerEntry[]
@@ -361,6 +365,7 @@ model Payout {
   teacherId   String
   amountPaisa Int
   method      String?
+  account     String?
   status      PayoutStatus  @default(DRAFT)
   reference   String?
   paidAt      DateTime?
