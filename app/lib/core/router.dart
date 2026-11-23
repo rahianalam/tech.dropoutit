@@ -2,11 +2,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 import '../features/admin/admin_screens.dart';
+import '../features/admin/money_screens.dart';
 import '../features/auth/auth_screens.dart';
 import '../features/course/course_screens.dart';
 import '../features/home/home_screen.dart';
 import '../features/learning/my_learning_screen.dart';
 import '../features/profile_screen.dart';
+import '../features/teacher/earnings_screen.dart';
 import '../features/teacher/teacher_screens.dart';
 import 'auth.dart';
 
@@ -63,6 +65,9 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/admin/applications', builder: (_, _) => const ApplicationsScreen()),
       GoRoute(path: '/admin/applications/:id', builder: (_, s) => ApplicationReviewScreen(s.pathParameters['id']!)),
       GoRoute(path: '/admin/course-reviews', builder: (_, _) => const CourseReviewScreen()),
+      GoRoute(path: '/teacher/earnings', builder: (_, _) => const EarningsScreen()),
+      GoRoute(path: '/admin/payouts', builder: (_, _) => const PayoutsScreen()),
+      GoRoute(path: '/admin/orders', builder: (_, _) => const OrdersScreen()),
       GoRoute(path: '/admin/settings', builder: (_, _) => const SettingsScreen()),
       GoRoute(path: '/admin/courses', builder: (_, _) => const TeacherDashboard(title: 'আমার রেকর্ডেড কোর্স')),
     ],

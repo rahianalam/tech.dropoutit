@@ -64,6 +64,22 @@ class AdminDashboard extends ConsumerWidget {
             const SizedBox(height: 8),
             Card(
               child: ListTile(
+                leading: const Icon(Icons.account_balance_outlined),
+                title: const Text('টিচার পেআউট ও আয়ের হিসাব'),
+                onTap: () => context.push('/admin/payouts'),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Card(
+              child: ListTile(
+                leading: const Icon(Icons.receipt_long_outlined),
+                title: const Text('অর্ডার ও রিফান্ড'),
+                onTap: () => context.push('/admin/orders'),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Card(
+              child: ListTile(
                 leading: const Icon(Icons.payments_outlined),
                 title: const Text('কমিশন ও পেআউট সেটিংস'),
                 onTap: () => context.push('/admin/settings'),
