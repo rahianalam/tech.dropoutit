@@ -185,6 +185,12 @@ describe('Tech.Dropout API (e2e)', () => {
     expect(mine.body).toHaveLength(1);
     const detail = await http.get(`${api}/courses/${freeCourseId}`).set(auth('student')).expect(200);
     expect(detail.body.enrolled).toBe(true);
+
+    await http.post(`${api}/courses/${paidCourseId}/reviews`).set(auth('student')).send({ rating: 5 }).expect(403); // not enrolled
+    await http.post(`${api}/courses/${freeCourseId}/reviews`).set(auth('student')).send({ rating: 4, comment: 'ভালো কোর্স' }).expect(201);
+    const rated = await http.get(`${api}/courses/${freeCourseId}`).expect(200);
+    expect(rated.body).toMatchObject({ ratingAvg: 4, ratingCount: 1 });
+    expect((await http.get(`${api}/courses/${freeCourseId}/reviews`).expect(200)).body[0].user.name).toBe('Sami Student');
   });
 
   it('admin publishes an official recorded course without review', async () => {

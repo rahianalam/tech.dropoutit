@@ -1,5 +1,6 @@
 import { Body, Controller, Delete, Get, HttpCode, Param, ParseBoolPipe, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
 import { AuthUser, CurrentUser, Public, Roles } from '../common/auth.decorators';
+import { ReviewDto } from '../bookings/bookings.module';
 import { CourseQueryDto, CreateCourseDto, LessonDto, ReviewCourseDto, SectionDto, UpdateCourseDto, UpdateLessonDto } from './courses.dto';
 import { CoursesService } from './courses.service';
 
@@ -18,6 +19,12 @@ export class CoursesController {
 
   @Public() @Get('lessons/:id')
   lesson(@Id() id: string, @CurrentUser() user?: AuthUser) { return this.courses.lessonContent(id, user); }
+
+  @Public() @Get('courses/:id/reviews')
+  reviews(@Id() id: string) { return this.courses.reviews(id); }
+
+  @Post('courses/:id/reviews')
+  addReview(@Id() id: string, @CurrentUser() u: AuthUser, @Body() dto: ReviewDto) { return this.courses.rateCourse(id, u.id, dto.rating, dto.comment); }
 
   // teacher
   @Roles('TEACHER', 'ADMIN') @Post('teacher/courses')

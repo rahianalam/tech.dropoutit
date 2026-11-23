@@ -6,6 +6,7 @@ import 'package:video_player/video_player.dart';
 import '../../core/auth.dart';
 import '../../core/format.dart';
 import '../../core/widgets.dart';
+import '../booking/booking_screens.dart';
 
 final courseProvider = FutureProvider.autoDispose.family<Map<String, dynamic>, String>(
     (ref, id) => ref.read(apiProvider).get('/courses/$id'));
@@ -110,6 +111,21 @@ class _CourseDetailScreenState extends ConsumerState<CourseDetailScreen> with Wi
                 child: Text(enrolled ? 'আপনি এনরোলড' : (c['isFree'] == true ? 'ফ্রি এনরোল করুন' : 'কিনুন ${price(c)}')),
               ),
             ),
+            if (enrolled)
+              TextButton.icon(
+                icon: const Icon(Icons.star_outline),
+                label: const Text('কোর্সটি রেট করুন'),
+                onPressed: () async {
+                  final r = await askRating(context, 'কোর্সটি কেমন লাগছে?');
+                  if (r == null || !context.mounted) return;
+                  try {
+                    await ref.read(apiProvider).post('/courses/$id/reviews', {'rating': r});
+                    if (context.mounted) showMessage(context, 'রিভিউয়ের জন্য ধন্যবাদ!');
+                  } catch (e) {
+                    if (context.mounted) showMessage(context, e);
+                  }
+                },
+              ),
             const SizedBox(height: 24),
             Text('কোর্স সম্পর্কে', style: text.titleMedium),
             const SizedBox(height: 8),
@@ -241,6 +257,12 @@ class TeacherProfileScreen extends ConsumerWidget {
             Wrap(spacing: 8, children: [for (final s in p['skills'] as List) Chip(label: Text(s as String))]),
             const SizedBox(height: 16),
             Text(p['bio'] as String),
+            const SizedBox(height: 16),
+            FilledButton.icon(
+              icon: const Icon(Icons.event_available),
+              label: const Text('১:১ সেশন বুক করুন'),
+              onPressed: () => context.push(Uri(path: '/teachers/$id/book', queryParameters: {'name': user['name'] as String}).toString()),
+            ),
             const SizedBox(height: 24),
             Text('পোর্টফোলিও', style: text.titleMedium),
             for (final item in user['portfolioItems'] as List)

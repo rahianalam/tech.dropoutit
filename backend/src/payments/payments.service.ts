@@ -2,10 +2,13 @@ import { BadRequestException, ConflictException, ForbiddenException, Injectable,
 import { Order, Prisma } from '@prisma/client';
 import { randomBytes } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
+import { meetingUrl } from '../bookings/slots';
 import { PaymentGateway } from './gateway';
 
 type Tx = Prisma.TransactionClient;
 export const ORDER_TTL_MINUTES = 30;
+
+const newTranId = () => `TD${Date.now().toString(36).toUpperCase()}${randomBytes(3).toString('hex').toUpperCase()}`;
 
 /** Teacher's share after the gateway fee and platform commission (plan doc, algorithm C). */
 export function teacherShare(paidPaisa: number, feePaisa: number, commissionBps: number): number {
@@ -44,7 +47,7 @@ export class PaymentsService {
           itemType: 'COURSE',
           itemId: courseId,
           amountPaisa: course.pricePaisa,
-          tranId: `TD${Date.now().toString(36).toUpperCase()}${randomBytes(3).toString('hex').toUpperCase()}`,
+          tranId: newTranId(),
         },
       }));
 
@@ -53,6 +56,24 @@ export class PaymentsService {
       amountPaisa: order.amountPaisa,
       productName: course.title,
       productCategory: 'Online course',
+      customer: { name: user.name, email: user.email, phone: user.phone },
+    });
+    return { orderId: order.id, tranId: order.tranId, amountPaisa: order.amountPaisa, gatewayUrl };
+  }
+
+  /** Starts checkout for a held session booking (created by BookingsService.book). */
+  async checkoutBooking(userId: string, bookingId: string) {
+    const booking = await this.prisma.booking.findUniqueOrThrow({ where: { id: bookingId }, include: { teacher: true } });
+    const user = await this.prisma.user.findUniqueOrThrow({ where: { id: userId } });
+    const order = await this.prisma.order.create({
+      data: { userId, itemType: 'BOOKING', itemId: bookingId, amountPaisa: booking.pricePaisa, tranId: newTranId() },
+    });
+    await this.prisma.booking.update({ where: { id: bookingId }, data: { orderId: order.id } });
+    const gatewayUrl = await this.gateway.createCheckout({
+      tranId: order.tranId,
+      amountPaisa: order.amountPaisa,
+      productName: `1:1 session with ${booking.teacher.name}`,
+      productCategory: 'Online session',
       customer: { name: user.name, email: user.email, phone: user.phone },
     });
     return { orderId: order.id, tranId: order.tranId, amountPaisa: order.amountPaisa, gatewayUrl };
@@ -112,7 +133,36 @@ export class PaymentsService {
         await this.recordEarning(tx, order, course.teacherId, payment.feePaisa, 'course');
         await tx.notification.create({ data: { userId: order.userId, title: 'পেমেন্ট সফল', body: `"${course.title}" কোর্সে আপনি এনরোলড।` } });
       }
+
+      if (order.itemType === 'BOOKING') {
+        await this.confirmBooking(tx, order, payment.feePaisa);
+      }
       return order;
+    });
+  }
+
+  /**
+   * Paid booking → CONFIRMED with a meeting link. If the hold had expired and
+   * someone else took the slot meanwhile, the student is told a refund is coming.
+   */
+  private async confirmBooking(tx: Tx, order: Order, feePaisa: number) {
+    const b = await tx.booking.findUnique({ where: { id: order.itemId }, include: { teacher: true, student: true } });
+    if (!b) return;
+    const clash = await tx.booking.findFirst({ where: { teacherId: b.teacherId, startAt: b.startAt, slotLock: 'live', id: { not: b.id } } });
+    if (clash || !['HELD', 'CANCELLED'].includes(b.status) || (b.status === 'CANCELLED' && b.cancelledBy !== 'system')) {
+      await tx.notification.create({ data: { userId: b.studentId, title: 'স্লটটি আর খালি নেই', body: 'পেমেন্ট দেরিতে পৌঁছেছে এবং স্লটটি অন্য কেউ নিয়েছে। পূর্ণ টাকা ফেরত দেওয়া হবে।' } });
+      const admins = await tx.userRole.findMany({ where: { role: 'ADMIN' } });
+      await tx.notification.createMany({ data: admins.map((a) => ({ userId: a.userId, title: 'রিফান্ড দরকার', body: `অর্ডার ${order.tranId}: স্লট হারানো বুকিং` })) });
+      return;
+    }
+    await tx.booking.update({ where: { id: b.id }, data: { status: 'CONFIRMED', slotLock: 'live', meetingUrl: b.meetingUrl ?? meetingUrl(), cancelledBy: null } });
+    await this.recordEarning(tx, order, b.teacherId, feePaisa, 'session');
+    const when = b.startAt.toLocaleString('en-GB', { timeZone: 'Asia/Dhaka', dateStyle: 'medium', timeStyle: 'short' });
+    await tx.notification.createMany({
+      data: [
+        { userId: b.studentId, title: 'সেশন নিশ্চিত', body: `${b.teacher.name}-এর সাথে ${when}` },
+        { userId: b.teacherId, title: 'নতুন সেশন বুকিং', body: `${b.student.name} · ${when}` },
+      ],
     });
   }
 
