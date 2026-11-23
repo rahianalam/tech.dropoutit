@@ -21,6 +21,7 @@ const ALLOWED: Record<Exclude<UploadKind, 'VIDEO'>, string[]> = {
   CV: ['application/pdf'],
   LOGO: ['image/png', 'image/jpeg', 'image/webp'],
   IMAGE: ['image/png', 'image/jpeg', 'image/webp'],
+  KYC: ['image/png', 'image/jpeg', 'image/webp'],
 };
 const VIDEO_MIME = ['video/mp4', 'video/webm', 'video/quicktime', 'video/x-matroska'];
 
@@ -172,8 +173,8 @@ export class UploadsController {
   @Post('uploads')
   @UseInterceptors(FileInterceptor('file', { limits: { fileSize: MAX_BYTES + 1 } }))
   upload(@CurrentUser() u: AuthUser, @UploadedFile() file: Express.Multer.File, @Query('kind') kind: string) {
-    if (!['CV', 'LOGO', 'IMAGE'].includes(kind)) throw new BadRequestException('kind must be CV, LOGO or IMAGE');
-    return this.uploads.save(u.id, kind as 'CV' | 'LOGO' | 'IMAGE', file);
+    if (!['CV', 'LOGO', 'IMAGE', 'KYC'].includes(kind)) throw new BadRequestException('kind must be CV, LOGO, IMAGE or KYC');
+    return this.uploads.save(u.id, kind as 'CV' | 'LOGO' | 'IMAGE' | 'KYC', file);
   }
 
   @Public() @Get('files/:id')

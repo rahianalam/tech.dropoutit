@@ -1,11 +1,12 @@
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { AuthUser } from '../common/auth.decorators';
-import { PaymentsService } from '../payments/payments.service';
+import { settingsOf } from '../fees/fees';
+import { PaymentsService, respondBy } from '../payments/payments.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { generateSlots, HOLD_MINUTES, meetingUrl, overlaps, Rule } from './slots';
 
-const LIVE = ['HELD', 'CONFIRMED', 'COMPLETED'] as const;
+const LIVE = ['HELD', 'REQUESTED', 'CONFIRMED', 'COMPLETED'] as const;
 const STUDENT_CANCEL_HOURS = 24;
 const person = { select: { id: true, name: true, avatarUrl: true } } as const;
 
@@ -35,6 +36,16 @@ export class BookingsService {
     return this.rules(teacherId);
   }
 
+  /**
+   * Price follows the length of the session: a paid slot costs the instructor's
+   * hourly rate x minutes / 60. A slot saved as free (0) stays a free intro.
+   */
+  async pricedRules(teacherId: string) {
+    const [rules, profile] = await Promise.all([this.rules(teacherId), this.prisma.teacherProfile.findUnique({ where: { userId: teacherId } })]);
+    const rate = profile?.hourlyRatePaisa;
+    return rules.map((r) => ({ ...r, pricePaisa: r.pricePaisa === 0 || !rate ? r.pricePaisa : Math.round((rate * r.slotMinutes) / 60 / 100) * 100 }));
+  }
+
   /** Expired holds stop blocking their slot. */
   releaseExpiredHolds() {
     return this.prisma.booking.updateMany({
@@ -50,7 +61,7 @@ export class BookingsService {
     const now = new Date();
     const until = new Date(now.getTime() + (days + 1) * 864e5);
     const [rules, booked] = await Promise.all([
-      this.rules(teacherId),
+      this.pricedRules(teacherId),
       this.prisma.booking.findMany({ where: { teacherId, slotLock: 'live', startAt: { gte: now, lte: until } }, select: { startAt: true } }),
     ]);
     return generateSlots(rules, booked.map((b) => b.startAt), now, Math.min(days, 30), now);
@@ -77,9 +88,11 @@ export class BookingsService {
           startAt: slot.startAt,
           endAt: slot.endAt,
           pricePaisa: slot.pricePaisa,
-          status: slot.pricePaisa === 0 ? 'CONFIRMED' : 'HELD',
+          // A free session goes straight to the instructor as a request; a paid one is
+          // held while the student pays, then becomes a request.
+          status: slot.pricePaisa === 0 ? 'REQUESTED' : 'HELD',
           heldUntil: new Date(Date.now() + HOLD_MINUTES * 60_000),
-          meetingUrl: slot.pricePaisa === 0 ? meetingUrl() : null,
+          respondBy: slot.pricePaisa === 0 ? respondBy(slot.startAt, (await settingsOf(this.prisma)).bookingResponseHours) : null,
         },
       });
     } catch (e) {
@@ -87,11 +100,64 @@ export class BookingsService {
       throw e;
     }
     if (slot.pricePaisa === 0) {
-      await this.notifyConfirmed(booking.id);
+      await this.notifyRequested(booking.id);
       return { booking, gatewayUrl: null, orderId: null };
     }
     const checkout = await this.payments.checkoutBooking(student.id, booking.id);
     return { booking, ...checkout };
+  }
+
+  async notifyRequested(bookingId: string) {
+    const b = await this.prisma.booking.findUniqueOrThrow({ where: { id: bookingId }, include: { student: true, teacher: true } });
+    const when = b.startAt.toLocaleString('en-GB', { timeZone: 'Asia/Dhaka', dateStyle: 'medium', timeStyle: 'short' });
+    await this.prisma.notification.createMany({
+      data: [
+        { userId: b.studentId, title: 'বুকিং রিকোয়েস্ট পাঠানো হয়েছে', body: `${b.teacher.name} গ্রহণ করলে সেশন নিশ্চিত হবে (${when})।` },
+        { userId: b.teacherId, title: 'নতুন বুকিং রিকোয়েস্ট', body: `${b.student.name} · ${when}। গ্রহণ বা বাতিল করুন।` },
+      ],
+    });
+  }
+
+  /** Instructor accepts a request: the session is confirmed and the paid amount goes into escrow for them. */
+  async accept(id: string, user: AuthUser) {
+    const b = await this.load(id);
+    if (b.teacherId !== user.id) throw new ForbiddenException();
+    if (b.status !== 'REQUESTED') throw new ConflictException(`Booking is ${b.status}`);
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const res = await tx.booking.updateMany({ where: { id, status: 'REQUESTED' }, data: { status: 'CONFIRMED', meetingUrl: b.meetingUrl ?? meetingUrl(), respondBy: null } });
+      if (!res.count) throw new ConflictException('This request was already answered');
+      if (b.order?.status === 'PAID') await this.payments.recordEarning(tx, b.order, b.teacherId, 0, 'session', b.endAt);
+      return tx.booking.findUniqueOrThrow({ where: { id } });
+    });
+    await this.notifyConfirmed(id);
+    return updated;
+  }
+
+  /** Instructor declines (or the request ran out of time): the slot opens again and a paid booking is refunded. */
+  async decline(id: string, user: AuthUser | null, note?: string) {
+    const b = await this.load(id);
+    if (user && b.teacherId !== user.id && !user.roles.includes('ADMIN')) throw new ForbiddenException();
+    if (b.status !== 'REQUESTED') throw new ConflictException(`Booking is ${b.status}`);
+    const res = await this.prisma.booking.updateMany({
+      where: { id, status: 'REQUESTED' },
+      data: { status: 'CANCELLED', slotLock: null, cancelledBy: user ? 'teacher' : 'system', declineNote: note, respondBy: null },
+    });
+    if (!res.count) throw new ConflictException('This request was already answered');
+    const paid = b.order?.status === 'PAID';
+    if (paid) await this.payments.refund(b.order!.id, user?.id ?? b.teacherId);
+    const why = user ? 'ইন্সট্রাক্টর রিকোয়েস্টটি গ্রহণ করতে পারেননি' : 'ইন্সট্রাক্টর সময়মতো উত্তর দেননি';
+    await this.prisma.notification.create({
+      data: { userId: b.studentId, title: 'বুকিং গ্রহণ হয়নি', body: `${why}${note ? `: ${note}` : ''}।${paid ? ' পুরো টাকা ফেরত দেওয়া হবে।' : ''}` },
+    });
+    if (paid) await this.notifyAdmins('রিফান্ড দরকার', `গ্রহণ না হওয়া বুকিংয়ের অর্ডার ${b.order!.tranId}: SSLCommerz প্যানেল থেকে টাকা ফেরত দিন।`);
+    return this.prisma.booking.findUniqueOrThrow({ where: { id } });
+  }
+
+  /** Requests the instructor did not answer in time are declined and refunded. */
+  async expireRequests(now = new Date()) {
+    const late = await this.prisma.booking.findMany({ where: { status: 'REQUESTED', respondBy: { lt: now } }, select: { id: true } });
+    for (const { id } of late) await this.decline(id, null).catch(() => undefined);
+    return late.length;
   }
 
   async notifyConfirmed(bookingId: string) {
@@ -115,7 +181,7 @@ export class BookingsService {
 
   forTeacher(teacherId: string) {
     return this.prisma.booking.findMany({
-      where: { teacherId, status: { in: ['CONFIRMED', 'COMPLETED', 'NO_SHOW', 'CANCELLED'] }, OR: [{ orderId: null }, { order: { status: { not: 'PENDING' } } }] },
+      where: { teacherId, status: { in: ['REQUESTED', 'CONFIRMED', 'COMPLETED', 'NO_SHOW', 'CANCELLED'] }, OR: [{ orderId: null }, { order: { status: { not: 'PENDING' } } }] },
       orderBy: { startAt: 'desc' },
       take: 100,
       include: { student: person },
@@ -138,8 +204,9 @@ export class BookingsService {
     const isTeacher = b.teacherId === user.id;
     const isStudent = b.studentId === user.id;
     if (!isTeacher && !isStudent && !user.roles.includes('ADMIN')) throw new ForbiddenException();
-    if (b.status !== 'CONFIRMED') throw new ConflictException(`Booking is ${b.status}`);
-    if (isStudent && !isTeacher && b.startAt.getTime() - Date.now() < STUDENT_CANCEL_HOURS * 3600_000) {
+    if (b.status === 'REQUESTED' && isTeacher) return this.decline(id, user);
+    if (b.status !== 'CONFIRMED' && b.status !== 'REQUESTED') throw new ConflictException(`Booking is ${b.status}`);
+    if (b.status === 'CONFIRMED' && isStudent && !isTeacher && b.startAt.getTime() - Date.now() < STUDENT_CANCEL_HOURS * 3600_000) {
       throw new BadRequestException('Sessions can be cancelled up to 24 hours before the start');
     }
     if (b.order?.status === 'PAID') {

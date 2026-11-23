@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client';
 import { AuthUser } from '../common/auth.decorators';
 import { PrismaService } from '../prisma/prisma.service';
 import { AdminCourseQueryDto, CourseQueryDto, CourseStatusDto, CreateCourseDto, LessonDto, ReviewCourseDto, SectionDto, UpdateCourseDto, UpdateLessonDto } from './courses.dto';
+import { InstructorService } from '../instructor/instructor.service';
 import { UploadsService } from '../uploads/uploads.module';
 import { MediaService } from './media.service';
 import { score } from './ranking';
@@ -16,6 +17,7 @@ export class CoursesService {
     private prisma: PrismaService,
     private media: MediaService,
     private uploads: UploadsService,
+    private instructor: InstructorService,
   ) {}
 
   /** BDT fields from the form → paisa columns. */
@@ -28,7 +30,8 @@ export class CoursesService {
 
   // ---------- teacher ----------
 
-  create(teacherId: string, dto: CreateCourseDto) {
+  async create(teacherId: string, dto: CreateCourseDto) {
+    if (dto.priceBdt) await this.instructor.assertCanSellPaid(teacherId);
     const { priceBdt, originalPriceBdt, ...rest } = dto;
     return this.prisma.course.create({
       data: { ...rest, teacherId, ...this.money({ priceBdt, originalPriceBdt }) } as Prisma.CourseUncheckedCreateInput,
@@ -46,6 +49,7 @@ export class CoursesService {
   async update(courseId: string, user: AuthUser, dto: UpdateCourseDto) {
     const course = await this.owned(courseId, user);
     if (!EDITABLE.includes(course.status)) throw new ConflictException('Course is under review');
+    if (dto.priceBdt && course.isFree) await this.instructor.assertCanSellPaid(course.teacherId);
     const { priceBdt, originalPriceBdt, ...rest } = dto;
     const data: Prisma.CourseUpdateInput = { ...rest, ...this.money({ priceBdt, originalPriceBdt }) };
     return this.prisma.course.update({ where: { id: courseId }, data });
@@ -146,6 +150,8 @@ export class CoursesService {
     let lesson;
     try {
       lesson = await this.ownedLesson(lessonId, user);
+      const course = await this.prisma.course.findUniqueOrThrow({ where: { id: lesson.section.courseId } });
+      await this.instructor.assertVideoQuota(course.teacherId, !!lesson.mediaKey?.startsWith('upload:'));
     } catch (e) {
       if (file?.path) require('fs').rmSync(file.path, { force: true });
       throw e;
@@ -353,7 +359,7 @@ export class CoursesService {
     const canSeeUnpublished = viewer && (viewer.id === course?.teacherId || viewer.roles.includes('ADMIN'));
     if (!course || (course.status !== 'PUBLISHED' && !canSeeUnpublished)) throw new NotFoundException('Course not found');
     const enrolled = viewer
-      ? !!(await this.prisma.enrollment.findFirst({ where: { userId: viewer.id, courseId, status: 'ACTIVE' } }))
+      ? !!(await this.prisma.enrollment.findFirst({ where: { userId: viewer.id, courseId, status: 'ACTIVE', OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }] } }))
       : false;
     // Instructor card: how many live courses and students this teacher has.
     const [teacherCourses, teacherStudents] = await Promise.all([
@@ -387,9 +393,13 @@ export class CoursesService {
       allowed =
         viewer.id === course.teacherId ||
         viewer.roles.includes('ADMIN') ||
-        !!(await this.prisma.enrollment.findFirst({ where: { userId: viewer.id, courseId: course.id, status: 'ACTIVE' } }));
+        !!(await this.prisma.enrollment.findFirst({ where: { userId: viewer.id, courseId: course.id, status: 'ACTIVE', OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }] } }));
     }
     if (!allowed) throw new ForbiddenException('Enroll in this course to watch this lesson');
+    // A learner opening a lesson counts as a view toward the instructor's blue tick.
+    if (viewer?.id !== course.teacherId && !viewer?.roles.includes('ADMIN')) {
+      await this.prisma.course.update({ where: { id: course.id }, data: { views: { increment: 1 } } });
+    }
     const { mediaKey, section, ...rest } = lesson;
     return { ...rest, courseId: course.id, mediaUrl: this.mediaUrl(mediaKey) };
   }

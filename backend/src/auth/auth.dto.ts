@@ -17,6 +17,12 @@ export class RegisterDto {
   @IsString()
   @MinLength(8)
   password: string;
+
+  /** A friend's referral code from their invite link */
+  @IsOptional()
+  @IsString()
+  @Length(4, 20)
+  ref?: string;
 }
 
 export class LoginDto {

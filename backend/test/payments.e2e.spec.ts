@@ -3,15 +3,15 @@ import { Test } from '@nestjs/testing';
 import * as bcrypt from 'bcryptjs';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
-import { teacherShare } from '../src/payments/payments.service';
+import { feeBreakdown } from '../src/fees/fees';
 import { isPayoutDay } from '../src/payouts/payouts.service';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { configureApp } from '../src/setup';
 
 describe('money rules', () => {
-  it('teacher share = (paid - fee) x (1 - commission)', () => {
-    expect(teacherShare(150000, 3000, 3000)).toBe(102900); // (1500 - 30) x 70% = 1029 BDT
-    expect(teacherShare(100000, 0, 2000)).toBe(80000);
+  it('instructor gets price - platform commission - VAT (gateway fee is the platform\'s)', () => {
+    expect(feeBreakdown(150000, 700, 500)).toEqual({ grossPaisa: 150000, commissionPaisa: 10500, vatPaisa: 7500, netPaisa: 132000 }); // course: 7% + 5%
+    expect(feeBreakdown(50000, 1000, 500).netPaisa).toBe(42500); // 1:1 booking: 10% + 5%
   });
   it('payout days follow the admin schedule in Dhaka time', () => {
     // 2026-12-31 20:00 UTC is 2027-01-01 02:00 in Dhaka
@@ -46,7 +46,7 @@ describe('payments and payouts (e2e)', () => {
     const hash = await bcrypt.hash('password123', 10);
     await prisma.user.create({ data: { name: 'Admin', email: 'admin@pay.bd', passwordHash: hash, roles: { create: [{ role: 'ADMIN' }] } } });
     const teacher = await prisma.user.create({
-      data: { name: 'Teacher', email: 'teacher@pay.bd', passwordHash: hash, roles: { create: [{ role: 'TEACHER' }] }, teacherProfile: { create: { headline: 'T', bio: 'B', skills: [] } } },
+      data: { name: 'Teacher', email: 'teacher@pay.bd', passwordHash: hash, roles: { create: [{ role: 'TEACHER' }] }, teacherProfile: { create: { headline: 'T', bio: 'B', skills: [], canSellPaid: true } } },
     });
     teacherId = teacher.id;
     await prisma.user.create({ data: { name: 'Student', email: 'student@pay.bd', passwordHash: hash, roles: { create: [{ role: 'STUDENT' }] } } });
@@ -95,14 +95,14 @@ describe('payments and payouts (e2e)', () => {
 
     const entries = await prisma.ledgerEntry.findMany({ where: { teacherId } });
     expect(entries).toHaveLength(1);
-    // fake gateway fee 2% = 3000 paisa; default commission 30%
-    expect(entries[0]).toMatchObject({ amountPaisa: 102900, commissionBps: 3000, status: 'PENDING' });
+    // 1500 BDT course: 7% platform fee + 5% VAT; the gateway's fee is not charged to the instructor
+    expect(entries[0]).toMatchObject({ amountPaisa: 132000, grossPaisa: 150000, commissionPaisa: 10500, vatPaisa: 7500, commissionBps: 700, status: 'PENDING' });
     expect(await prisma.payment.count({ where: { orderId } })).toBe(1);
   });
 
   it('earnings stay pending during the hold, then become available and get paid out', async () => {
     let e = await http.get(`${api}/teacher/earnings`).set(auth('teacher')).expect(200);
-    expect(e.body).toMatchObject({ pendingPaisa: 102900, availablePaisa: 0 });
+    expect(e.body).toMatchObject({ pendingPaisa: 132000, availablePaisa: 0 });
 
     // nothing to pay yet
     expect((await http.post(`${api}/admin/payouts/generate`).set(auth('admin')).expect(201)).body).toHaveLength(0);
@@ -110,11 +110,11 @@ describe('payments and payouts (e2e)', () => {
     await prisma.ledgerEntry.updateMany({ where: { teacherId }, data: { availableAt: new Date(Date.now() - 1000) } }); // hold passed
     await http.patch(`${api}/teacher/payout-account`).set(auth('teacher')).send({ method: 'bkash', account: '01711111111' }).expect(200);
     e = await http.get(`${api}/teacher/earnings`).set(auth('teacher')).expect(200);
-    expect(e.body).toMatchObject({ pendingPaisa: 0, availablePaisa: 102900 });
+    expect(e.body).toMatchObject({ pendingPaisa: 0, availablePaisa: 132000 });
 
     const drafts = (await http.post(`${api}/admin/payouts/generate`).set(auth('admin')).expect(201)).body;
     expect(drafts).toHaveLength(1);
-    expect(drafts[0]).toMatchObject({ amountPaisa: 102900, method: 'bkash', account: '01711111111', status: 'DRAFT' });
+    expect(drafts[0]).toMatchObject({ amountPaisa: 132000, method: 'bkash', account: '01711111111', status: 'DRAFT' });
     // generating again does not double-count
     expect((await http.post(`${api}/admin/payouts/generate`).set(auth('admin')).expect(201)).body).toHaveLength(0);
 
@@ -123,7 +123,7 @@ describe('payments and payouts (e2e)', () => {
     const paid = await http.post(`${api}/admin/payouts/${drafts[0].id}/paid`).set(auth('admin')).send({ reference: 'BK123' }).expect(201);
     expect(paid.body.status).toBe('PAID');
     e = await http.get(`${api}/teacher/earnings`).set(auth('teacher')).expect(200);
-    expect(e.body).toMatchObject({ availablePaisa: 0, paidPaisa: 102900 });
+    expect(e.body).toMatchObject({ availablePaisa: 0, paidPaisa: 132000 });
   });
 
   it('refund after payout removes access and claws back from the next payout', async () => {
@@ -132,7 +132,7 @@ describe('payments and payouts (e2e)', () => {
     const detail = await http.get(`${api}/courses/${courseId}`).set(auth('student')).expect(200);
     expect(detail.body.enrolled).toBe(false);
     const e = await http.get(`${api}/teacher/earnings`).set(auth('teacher')).expect(200);
-    expect(e.body.availablePaisa).toBe(-102900);
+    expect(e.body.availablePaisa).toBe(-132000);
     const rev = await http.get(`${api}/admin/revenue`).set(auth('admin')).expect(200);
     expect(rev.body.paidOrders).toBe(0);
   });

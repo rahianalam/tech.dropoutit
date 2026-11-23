@@ -28,8 +28,8 @@ export class PaymentsController {
   ) {}
 
   @Post('checkout/course/:id')
-  checkout(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() u: AuthUser) {
-    return this.payments.checkoutCourse(u.id, id);
+  checkout(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() u: AuthUser, @Query('ref') ref?: string) {
+    return this.payments.checkoutCourse(u.id, id, ref);
   }
 
   @Get('orders/:id')

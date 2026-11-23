@@ -22,8 +22,17 @@ export class EnrollmentsService {
     if (!course || course.status !== 'PUBLISHED') throw new NotFoundException('Course not found');
     if (course.teacherId === userId) throw new ForbiddenException('You cannot enroll in your own course');
     const existing = await this.prisma.enrollment.findUnique({ where: { userId_courseId: { userId, courseId } } });
-    if (existing?.status === 'ACTIVE') return existing;
+    if (existing?.status === 'ACTIVE' && (!existing.expiresAt || existing.expiresAt > new Date())) return existing;
     if (!course.isFree) {
+      // Referral reward: any paid course is open until the free pass ends.
+      const user = await this.prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { freePassUntil: true } });
+      if (user.freePassUntil && user.freePassUntil > new Date()) {
+        return this.prisma.enrollment.upsert({
+          where: { userId_courseId: { userId, courseId } },
+          create: { userId, courseId, expiresAt: user.freePassUntil },
+          update: { status: 'ACTIVE', expiresAt: user.freePassUntil },
+        });
+      }
       throw new HttpException(
         { statusCode: 402, message: 'Payment required', pricePaisa: course.pricePaisa, courseId },
         HttpStatus.PAYMENT_REQUIRED,

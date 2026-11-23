@@ -1,3 +1,4 @@
+import { paidCourseSales, settingsOf, tierFor } from '../fees/fees';
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { ApplicationStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
@@ -37,6 +38,7 @@ export class TeachersService {
       experience: dto.experience,
       demoVideoUrl: dto.demoVideoUrl,
       status: ApplicationStatus.PENDING,
+      rulesAcceptedAt: new Date(),
     };
 
     return this.prisma.$transaction(async (tx) => {
@@ -88,8 +90,9 @@ export class TeachersService {
         });
         await tx.teacherProfile.upsert({
           where: { userId: app.userId },
-          create: { userId: app.userId, headline: app.headline, bio: app.bio, skills: app.skills },
-          update: { headline: app.headline, bio: app.bio, skills: app.skills },
+          // New instructors start on free courses until they earn the blue tick.
+          create: { userId: app.userId, headline: app.headline, bio: app.bio, skills: app.skills, experience: app.experience, expertise: app.skills, rulesAcceptedAt: app.rulesAcceptedAt },
+          update: { headline: app.headline, bio: app.bio, skills: app.skills, experience: app.experience, rulesAcceptedAt: app.rulesAcceptedAt },
         });
       }
       const message = {
@@ -112,6 +115,10 @@ export class TeachersService {
         headline: true,
         bio: true,
         skills: true,
+        experience: true,
+        expertise: true,
+        hourlyRatePaisa: true,
+        verifiedAt: true,
         user: {
           select: {
             id: true,
@@ -130,8 +137,12 @@ export class TeachersService {
       },
     });
     if (!profile) throw new NotFoundException('Teacher not found');
-    const students = await this.prisma.enrollment.count({ where: { course: { teacherId: userId }, status: 'ACTIVE' } });
-    return { ...profile, stats: { students, courses: profile.user.courses.length } };
+    const [students, sales, settings] = await Promise.all([
+      this.prisma.enrollment.count({ where: { course: { teacherId: userId }, status: 'ACTIVE' } }),
+      paidCourseSales(this.prisma, userId),
+      settingsOf(this.prisma),
+    ]);
+    return { ...profile, verified: !!profile.verifiedAt, tier: tierFor(sales, settings), stats: { students, courses: profile.user.courses.length } };
   }
 
   /** Public list of instructors with live courses, most students first (home screen "mentors" row). */

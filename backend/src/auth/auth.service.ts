@@ -30,9 +30,11 @@ export class AuthService {
     });
     if (existing) throw new ConflictException('An account with this email or phone already exists');
 
+    const referrer = dto.ref ? await this.prisma.user.findUnique({ where: { referralCode: dto.ref.trim().toUpperCase() } }) : null;
     // Everyone starts as a student; teacher/employer roles are added later.
     const user = await this.prisma.user.create({
       data: {
+        referredById: referrer?.id,
         name: dto.name.trim(),
         email,
         phone,
