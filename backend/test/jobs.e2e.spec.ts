@@ -95,8 +95,8 @@ describe('jobs (e2e)', () => {
     // someone else's upload can't be attached
     await http.put(`${api}/seeker/profile`).set(auth('other')).send({ headline: 'Dev', skills: ['Go'], cvUploadId: up.body.id }).expect(400);
     const profile = await http.put(`${api}/seeker/profile`).set(auth('seeker')).send({ headline: 'Flutter শিখছি', skills: ['flutter', 'Firebase'], cvUploadId: up.body.id }).expect(200);
-    expect(profile.body.cvUrl).toContain('/files/');
-    const file = await http.get(profile.body.cvUrl.replace(/^https?:\/\/[^/]+/, '')).expect(200);
+    expect(profile.body.cvUrl).toMatch(/^http:\/\/localhost:3000\/api\/v1\/files\/[0-9a-f-]+\?exp=\d+&sig=/);
+    const file = await http.get(profile.body.cvUrl.replace(/^https?:\/\/[^/]+/, '')).expect(200); // path incl. /api/v1
     expect(file.headers['content-type']).toBe('application/pdf');
     await http.get(profile.body.cvUrl.replace(/^https?:\/\/[^/]+/, '').replace(/sig=[^&]+/, 'sig=forged')).expect(403);
   });

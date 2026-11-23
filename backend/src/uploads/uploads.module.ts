@@ -6,7 +6,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { UploadKind } from '@prisma/client';
 import { createHmac, timingSafeEqual } from 'crypto';
 import type { Response } from 'express';
-import { createReadStream, existsSync, mkdirSync, writeFileSync } from 'fs';
+import { createReadStream, existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { AuthUser, CurrentUser, Public } from '../common/auth.decorators';
 import { PrismaService } from '../prisma/prisma.service';
@@ -54,11 +54,16 @@ export class UploadsService {
     return { id: up.id, originalName: up.originalName, size: up.size, url: this.link(up.id) };
   }
 
+  removeFile(id: string) {
+    rmSync(join(this.dir, id), { force: true });
+  }
+
   /** Short-lived link the app can open in a browser or PDF viewer (no auth header needed). */
   link(id: string, ttlSeconds = 15 * 60) {
     const exp = Math.floor(Date.now() / 1000) + ttlSeconds;
-    const base = process.env.PUBLIC_API_URL ?? 'http://localhost:3000';
-    return `${base}/api/v1/files/${id}?exp=${exp}&sig=${this.sig(id, exp)}`;
+    // PUBLIC_API_URL already ends in /api/v1 (same value the payment callbacks use)
+    const base = (process.env.PUBLIC_API_URL ?? 'http://localhost:3000/api/v1').replace(/\/+$/, '');
+    return `${base}/files/${id}?exp=${exp}&sig=${this.sig(id, exp)}`;
   }
 
   async open(id: string, exp: string, sig: string) {
