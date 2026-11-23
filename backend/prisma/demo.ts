@@ -183,6 +183,13 @@ async function main() {
         name: t.name, email: `${t.key}${DOMAIN}`, passwordHash,
         roles: { create: [{ role: 'TEACHER' }, { role: 'STUDENT' }] },
         teacherProfile: { create: { headline: t.headline, bio: t.bio, skills: t.skills } },
+        // Bookable 1:1 time: Sun-Thu 7-10 PM (paid, 1 hour) and a free 30-minute intro on Saturday morning.
+        availabilityRules: {
+          create: [
+            ...[0, 1, 2, 3, 4].map((weekday) => ({ weekday, startMinute: 19 * 60, endMinute: 22 * 60, slotMinutes: 60, pricePaisa: 50000 })),
+            { weekday: 6, startMinute: 10 * 60, endMinute: 12 * 60, slotMinutes: 30, pricePaisa: 0 },
+          ],
+        },
       },
     });
     teacherIds.set(t.key, u.id);

@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
+import 'core/api.dart';
 import 'core/auth.dart';
 import 'core/i18n.dart';
 import 'core/push.dart';
@@ -10,7 +11,15 @@ import 'core/widgets.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await loadSavedLang();
-  runApp(const ProviderScope(child: TechDropoutApp()));
+  runApp(const ProviderScope(retry: _retry, child: TechDropoutApp()));
+}
+
+/// Retry a failed load only for network trouble, and only twice. A "not found" or
+/// "not allowed" answer will not change, so it shows at once with a Try again button
+/// instead of a spinner that keeps going.
+Duration? _retry(int count, Object error) {
+  if (count >= 2 || error is! ApiError || error.status != null) return null;
+  return Duration(seconds: 1 << count);
 }
 
 class TechDropoutApp extends ConsumerWidget {

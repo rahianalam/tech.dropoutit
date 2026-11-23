@@ -196,7 +196,7 @@ class _Results extends ConsumerWidget {
                   ? Padding(
                       padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
                       child: Text(
-                        t('${items.length} results', '${items.length}টি ফলাফল'),
+                        t(plural(items.length, 'result'), '${items.length}টি ফলাফল'),
                         style: TextStyle(color: scheme.onSurfaceVariant, fontWeight: FontWeight.w600),
                       ),
                     )
@@ -232,7 +232,7 @@ class _Browse extends ConsumerWidget {
             child: ListTile(
               leading: IconBadge(categoryIcon(c['icon'] as String?), color: hexColor(c['color'] as String?)),
               title: Text(c['name'] as String),
-              subtitle: Text(t(c['courseCount'] == 1 ? '1 course' : '${c['courseCount'] ?? 0} courses', '${c['courseCount'] ?? 0}টি কোর্স')),
+              subtitle: Text(t(c['courseCount'] == 1 ? '1 course' : plural(c['courseCount'] ?? 0, 'course'), '${c['courseCount'] ?? 0}টি কোর্স')),
               trailing: const Icon(Icons.chevron_right_rounded),
               onTap: () => onPick(c['slug'] as String),
             ),

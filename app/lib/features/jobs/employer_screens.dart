@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
+import '../../core/format.dart';
 import '../../core/i18n.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../core/auth.dart';
@@ -609,7 +610,7 @@ class _Employers extends ConsumerWidget {
               for (final e in items)
                 SwitchListTile(
                   title: Text(e['companyName'] as String),
-                  subtitle: Text(t('${e['user']['name']} · ${e['user']['email'] ?? e['user']['phone'] ?? ''} · ${e['_count']['jobs']} jobs', '${e['user']['name']} · ${e['user']['email'] ?? e['user']['phone'] ?? ''} · ${e['_count']['jobs']}টা জব')),
+                  subtitle: Text(t('${e['user']['name']} · ${e['user']['email'] ?? e['user']['phone'] ?? ''} · ${plural(e['_count']['jobs'], 'job')}', '${e['user']['name']} · ${e['user']['email'] ?? e['user']['phone'] ?? ''} · ${e['_count']['jobs']}টা জব')),
                   secondary: const Icon(Icons.verified_outlined),
                   value: e['verified'] as bool,
                   onChanged: (v) async {

@@ -301,7 +301,7 @@ class CourseReviewScreen extends ConsumerWidget {
                     child: Column(children: [
                       ListTile(
                         title: Text(c['title'] as String),
-                        subtitle: Text(t('${c['teacher']['name']} · ${price(c)} · ${c['_count']['sections']} sections', '${c['teacher']['name']} · ${price(c as Map<String, dynamic>)} · ${c['_count']['sections']} সেকশন')),
+                        subtitle: Text(t('${c['teacher']['name']} · ${price(c)} · ${plural(c['_count']['sections'], 'section')}', '${c['teacher']['name']} · ${price(c as Map<String, dynamic>)} · ${c['_count']['sections']} সেকশন')),
                         onTap: () => context.push('/courses/${c['id']}'),
                       ),
                       OverflowBar(children: [

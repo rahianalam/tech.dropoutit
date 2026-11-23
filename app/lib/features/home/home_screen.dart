@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
+import '../../core/format.dart';
 import '../../core/auth.dart';
 import '../../core/i18n.dart';
 import '../../core/theme.dart';
@@ -283,7 +284,7 @@ class _Categories extends ConsumerWidget {
                         Text(c['name'] as String, maxLines: 2, overflow: TextOverflow.ellipsis, style: text.titleSmall?.copyWith(height: 1.2)),
                         const SizedBox(height: 2),
                         Text(
-                          t(c['courseCount'] == 1 ? '1 course' : '${c['courseCount'] ?? 0} courses', '${c['courseCount'] ?? 0}টি কোর্স'),
+                          t(c['courseCount'] == 1 ? '1 course' : plural(c['courseCount'] ?? 0, 'course'), '${c['courseCount'] ?? 0}টি কোর্স'),
                           style: text.bodySmall?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
                         ),
                       ]),
@@ -388,7 +389,7 @@ class _Mentors extends ConsumerWidget {
                       ),
                       const Spacer(),
                       Text(
-                        t('${m['students']} students · ${m['courses']} courses', '${m['students']} শিক্ষার্থী · ${m['courses']} কোর্স'),
+                        t('${plural(m['students'], 'student')} · ${plural(m['courses'], 'course')}', '${m['students']} শিক্ষার্থী · ${m['courses']} কোর্স'),
                         style: text.labelSmall?.copyWith(color: Theme.of(context).colorScheme.primary, fontWeight: FontWeight.w600),
                       ),
                     ]),

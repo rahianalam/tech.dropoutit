@@ -151,7 +151,7 @@ class TeacherDashboard extends ConsumerWidget {
   String get title => customTitle ?? t('Teacher dashboard', 'টিচার ড্যাশবোর্ড');
 
   Future<void> _create(BuildContext context, WidgetRef ref) async {
-    final c = await Navigator.of(context).push<Map<String, dynamic>>(MaterialPageRoute(builder: (_) => const CourseDetailsForm()));
+    final c = await Navigator.of(context, rootNavigator: true).push<Map<String, dynamic>>(MaterialPageRoute(builder: (_) => const CourseDetailsForm()));
     if (c == null) return;
     ref.invalidate(myCoursesProvider);
     if (context.mounted) context.push('/teacher/courses/${c['id']}');
@@ -238,7 +238,7 @@ class TeacherDashboard extends ConsumerWidget {
                         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                           Text(c['title'] as String, maxLines: 2, overflow: TextOverflow.ellipsis, style: text.titleSmall),
                           const SizedBox(height: 4),
-                          Text(t('${c['_count']['enrollments']} students · ${price(c)}', '${c['_count']['enrollments']} শিক্ষার্থী · ${price(c)}'), style: text.bodySmall),
+                          Text(t('${plural(c['_count']['enrollments'], 'student')} · ${price(c)}', '${c['_count']['enrollments']} শিক্ষার্থী · ${price(c)}'), style: text.bodySmall),
                           const SizedBox(height: 6),
                           _StatusChip(c['status'] as String),
                         ]),
@@ -493,7 +493,7 @@ class CourseEditorScreen extends ConsumerWidget {
             ),
             SectionHeader(
               t('Curriculum', 'কারিকুলাম'),
-              subtitle: t('${sections.length} sections · ${lessons.length} lessons', '${sections.length}টি সেকশন · ${lessons.length}টি লেসন'),
+              subtitle: t('${plural(sections.length, 'section')} · ${plural(lessons.length, 'lesson')}', '${sections.length}টি সেকশন · ${lessons.length}টি লেসন'),
               padding: const EdgeInsets.fromLTRB(0, 20, 0, 10),
             ),
             for (final s in sections) ...[

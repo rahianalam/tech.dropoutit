@@ -80,7 +80,9 @@ class Api {
   Future<T> _call<T>(Future<Response> Function() fn) async {
     try {
       final res = await fn();
-      return res.data as T;
+      // NestJS sends an empty body for a null result (e.g. "no application yet").
+      final data = res.data;
+      return (data is String && data.isEmpty ? null : data) as T;
     } on DioException catch (e) {
       throw ApiError.from(e);
     }

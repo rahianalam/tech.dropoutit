@@ -121,7 +121,7 @@ class _AdminCoursesScreenState extends ConsumerState<AdminCoursesScreen> {
                                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                                   Text(c['title'] as String, maxLines: 2, overflow: TextOverflow.ellipsis, style: Theme.of(context).textTheme.titleSmall),
                                   Text(
-                                    '${c['teacher']['name']} · ${price(c)} · ${t('${c['_count']['enrollments']} students', '${c['_count']['enrollments']} শিক্ষার্থী')}',
+                                    '${c['teacher']['name']} · ${price(c)} · ${t(plural(c['_count']['enrollments'], 'student'), '${c['_count']['enrollments']} শিক্ষার্থী')}',
                                     style: Theme.of(context).textTheme.bodySmall,
                                   ),
                                   const SizedBox(height: 6),

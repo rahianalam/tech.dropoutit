@@ -52,3 +52,9 @@ String levelLabel(String? level) => switch (level) {
     };
 
 String languageLabel(String? lang) => lang == 'en' ? 'English' : 'বাংলা';
+
+/// "1 lesson", "3 lessons" (English only; Bangla has no plural form).
+String plural(Object? count, String one) {
+  final n = count is num ? count : num.tryParse('$count') ?? 0;
+  return '$n ${n == 1 ? one : '${one}s'}';
+}

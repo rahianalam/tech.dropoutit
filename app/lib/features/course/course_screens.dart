@@ -276,7 +276,7 @@ class _CourseDetailScreenState extends ConsumerState<CourseDetailScreen> with Wi
           Wrap(spacing: 8, runSpacing: 8, crossAxisAlignment: WrapCrossAlignment.center, children: [
             ...courseTags(c),
             if ((c['ratingCount'] as int) > 0) Stars(rating, count: c['ratingCount'] as int),
-            Text(t('${compact(c['_count']['enrollments'] as int)} students', '${compact(c['_count']['enrollments'] as int)} শিক্ষার্থী'),
+            Text(t(c['_count']['enrollments'] == 1 ? '1 student' : '${compact(c['_count']['enrollments'] as int)} students', '${compact(c['_count']['enrollments'] as int)} শিক্ষার্থী'),
                 style: text.bodySmall),
           ]),
           const SizedBox(height: 10),
@@ -340,7 +340,7 @@ class _CourseDetailScreenState extends ConsumerState<CourseDetailScreen> with Wi
           Text(t('This course includes', 'এই কোর্সে যা আছে'), style: text.titleLarge),
           const SizedBox(height: 10),
           _Include(Icons.ondemand_video_rounded, t('${hours(c['totalSec'] as int? ?? 0)} of on-demand video', '${hours(c['totalSec'] as int? ?? 0)} ভিডিও')),
-          _Include(Icons.play_lesson_outlined, t('${c['lessonCount'] ?? lessons.length} lessons', '${c['lessonCount'] ?? lessons.length}টি লেসন')),
+          _Include(Icons.play_lesson_outlined, t(plural(c['lessonCount'] ?? lessons.length, 'lesson'), '${c['lessonCount'] ?? lessons.length}টি লেসন')),
           _Include(Icons.phone_iphone_rounded, t('Learn on your phone, anytime', 'যেকোনো সময় ফোনে শিখুন')),
           _Include(Icons.all_inclusive_rounded, t('Full lifetime access', 'আজীবন অ্যাক্সেস')),
           _Include(Icons.support_agent_rounded, t('Book 1:1 help from the instructor', 'ইন্সট্রাক্টরের সাথে ১:১ সেশন বুক করা যাবে')),
@@ -441,7 +441,7 @@ class _Curriculum extends StatelessWidget {
       Text(t('Course content', 'কোর্স কন্টেন্ট'), style: text.titleLarge),
       const SizedBox(height: 4),
       Text(
-        t('${sections.length} sections · $lessonCount lessons · ${duration(course['totalSec'] as int? ?? 0)} total',
+        t('${plural(sections.length, 'section')} · ${plural(lessonCount, 'lesson')} · ${duration(course['totalSec'] as int? ?? 0)} total',
             '${sections.length}টি সেকশন · $lessonCountটি লেসন · মোট ${duration(course['totalSec'] as int? ?? 0)}'),
         style: text.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
       ),
@@ -457,7 +457,7 @@ class _Curriculum extends StatelessWidget {
                 backgroundColor: scheme.surfaceContainerLow,
                 title: Text(sections[i]['title'] as String, style: text.titleSmall),
                 subtitle: Text(
-                  t('${(sections[i]['lessons'] as List).length} lessons · ${duration((sections[i]['lessons'] as List).fold<int>(0, (n, l) => n + (l['durationSec'] as int)))}',
+                  t('${plural((sections[i]['lessons'] as List).length, 'lesson')} · ${duration((sections[i]['lessons'] as List).fold<int>(0, (n, l) => n + (l['durationSec'] as int)))}',
                       '${(sections[i]['lessons'] as List).length}টি লেসন · ${duration((sections[i]['lessons'] as List).fold<int>(0, (n, l) => n + (l['durationSec'] as int)))}'),
                   style: text.bodySmall,
                 ),
@@ -521,8 +521,8 @@ class _InstructorCard extends StatelessWidget {
           if (stats != null) ...[
             const SizedBox(height: 12),
             Wrap(spacing: 16, children: [
-              _Meta(Icons.groups_2_outlined, t('${stats['students']} students', '${stats['students']} শিক্ষার্থী')),
-              _Meta(Icons.play_circle_outline_rounded, t('${stats['courses']} courses', '${stats['courses']} কোর্স')),
+              _Meta(Icons.groups_2_outlined, t(plural(stats['students'], 'student'), '${stats['students']} শিক্ষার্থী')),
+              _Meta(Icons.play_circle_outline_rounded, t(plural(stats['courses'], 'course'), '${stats['courses']} কোর্স')),
             ]),
           ],
           if ((profile?['bio'] as String?)?.isNotEmpty ?? false) ...[
