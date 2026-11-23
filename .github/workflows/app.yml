@@ -42,11 +42,11 @@ jobs:
         run: |
           echo "$KEYSTORE" | base64 -d > android/app/upload-keystore.jks
           printf 'storePassword=%s\nkeyPassword=%s\nkeyAlias=%s\nstoreFile=upload-keystore.jks\n' "$STORE_PASSWORD" "$KEY_PASSWORD" "$KEY_ALIAS" > android/key.properties
-      - run: flutter build apk --release --dart-define=API_URL=$API_URL $DEFINES --build-number=${{ github.run_number }}
+      - run: flutter build apk --release --dart-define=API_URL=$API_URL --dart-define=STORE_BUILD=true $DEFINES --build-number=${{ github.run_number }}
       - uses: actions/upload-artifact@v4
         with: { name: tech-dropout-apk, path: app/build/app/outputs/flutter-apk/app-release.apk, retention-days: 14 }
       - if: github.event_name != 'pull_request'
-        run: flutter build appbundle --release --dart-define=API_URL=$API_URL $DEFINES --build-number=${{ github.run_number }}
+        run: flutter build appbundle --release --dart-define=API_URL=$API_URL --dart-define=STORE_BUILD=true $DEFINES --build-number=${{ github.run_number }}
       - if: github.event_name != 'pull_request'
         uses: actions/upload-artifact@v4
         with: { name: tech-dropout-aab, path: app/build/app/outputs/bundle/release/app-release.aab, retention-days: 30 }

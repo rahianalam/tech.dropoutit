@@ -142,7 +142,7 @@ class CourseCard extends StatelessWidget {
                     const Spacer(),
                   ] else
                     const Spacer(),
-                  Text(price(course), style: text.titleSmall),
+                  Text(catalogPrice(course), style: text.titleSmall),
                 ]),
               ]),
             ),

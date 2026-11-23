@@ -14,6 +14,12 @@ void main() {
     expect(price({'isFree': false, 'pricePaisa': 99900}), '৳999');
   });
 
+  test('store builds hide paid course prices in the catalog', () {
+    expect(catalogPrice({'isFree': false, 'pricePaisa': 99900}, store: true), 'প্রিমিয়াম');
+    expect(catalogPrice({'isFree': true, 'pricePaisa': 0}, store: true), 'ফ্রি');
+    expect(catalogPrice({'isFree': false, 'pricePaisa': 99900}, store: false), '৳999');
+  });
+
   test('tabs follow roles', () {
     expect(tabsFor(null).map((t) => t.path), ['/', '/learning', '/jobs', '/profile']);
     final teacher = Me({'id': 't', 'name': 'T', 'roles': ['STUDENT', 'TEACHER']});
