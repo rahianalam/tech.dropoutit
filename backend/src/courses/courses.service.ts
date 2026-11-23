@@ -2,7 +2,8 @@ import { BadRequestException, ConflictException, ForbiddenException, Injectable,
 import { Prisma } from '@prisma/client';
 import { AuthUser } from '../common/auth.decorators';
 import { PrismaService } from '../prisma/prisma.service';
-import { CourseQueryDto, CreateCourseDto, LessonDto, ReviewCourseDto, SectionDto, UpdateCourseDto, UpdateLessonDto } from './courses.dto';
+import { AdminCourseQueryDto, CourseQueryDto, CourseStatusDto, CreateCourseDto, LessonDto, ReviewCourseDto, SectionDto, UpdateCourseDto, UpdateLessonDto } from './courses.dto';
+import { UploadsService } from '../uploads/uploads.module';
 import { MediaService } from './media.service';
 import { score } from './ranking';
 
@@ -14,14 +15,23 @@ export class CoursesService {
   constructor(
     private prisma: PrismaService,
     private media: MediaService,
+    private uploads: UploadsService,
   ) {}
+
+  /** BDT fields from the form → paisa columns. */
+  private money(dto: { priceBdt?: number; originalPriceBdt?: number | null }) {
+    const out: Record<string, unknown> = {};
+    if (dto.priceBdt !== undefined) Object.assign(out, { pricePaisa: dto.priceBdt * 100, isFree: dto.priceBdt === 0 });
+    if (dto.originalPriceBdt !== undefined) out.originalPricePaisa = dto.originalPriceBdt ? dto.originalPriceBdt * 100 : null;
+    return out;
+  }
 
   // ---------- teacher ----------
 
   create(teacherId: string, dto: CreateCourseDto) {
-    const { priceBdt, ...rest } = dto;
+    const { priceBdt, originalPriceBdt, ...rest } = dto;
     return this.prisma.course.create({
-      data: { ...rest, teacherId, pricePaisa: priceBdt * 100, isFree: priceBdt === 0 },
+      data: { ...rest, teacherId, ...this.money({ priceBdt, originalPriceBdt }) } as Prisma.CourseUncheckedCreateInput,
     });
   }
 
@@ -36,9 +46,8 @@ export class CoursesService {
   async update(courseId: string, user: AuthUser, dto: UpdateCourseDto) {
     const course = await this.owned(courseId, user);
     if (!EDITABLE.includes(course.status)) throw new ConflictException('Course is under review');
-    const { priceBdt, ...rest } = dto;
-    const data: Prisma.CourseUpdateInput = { ...rest };
-    if (priceBdt !== undefined) Object.assign(data, { pricePaisa: priceBdt * 100, isFree: priceBdt === 0 });
+    const { priceBdt, originalPriceBdt, ...rest } = dto;
+    const data: Prisma.CourseUpdateInput = { ...rest, ...this.money({ priceBdt, originalPriceBdt }) };
     return this.prisma.course.update({ where: { id: courseId }, data });
   }
 
@@ -52,10 +61,22 @@ export class CoursesService {
 
   async curriculumForOwner(courseId: string, user: AuthUser) {
     await this.owned(courseId, user);
-    return this.prisma.course.findUnique({
+    const course = await this.prisma.course.findUniqueOrThrow({
       where: { id: courseId },
       include: { sections: { orderBy: { position: 'asc' }, include: { lessons: { orderBy: { position: 'asc' } } } } },
     });
+    return {
+      ...course,
+      sections: course.sections.map((s) => ({
+        ...s,
+        lessons: s.lessons.map(({ mediaKey, ...l }) => ({
+          ...l,
+          hasVideo: !!mediaKey,
+          videoSource: !mediaKey ? null : mediaKey.startsWith('upload:') ? 'upload' : /^https?:/.test(mediaKey) ? 'link' : 'cdn',
+          videoLink: mediaKey && /^https?:/.test(mediaKey) ? mediaKey : null,
+        })),
+      })),
+    };
   }
 
   async addSection(courseId: string, user: AuthUser, dto: SectionDto) {
@@ -82,6 +103,7 @@ export class CoursesService {
     const section = await this.prisma.section.findUnique({ where: { id: sectionId } });
     if (!section) throw new NotFoundException();
     await this.owned(section.courseId, user);
+    this.checkMediaKey(dto.mediaKey);
     const position = dto.position ?? (await this.prisma.lesson.count({ where: { sectionId } }));
     return this.prisma.lesson.create({ data: { ...dto, sectionId, position } });
   }
@@ -94,13 +116,68 @@ export class CoursesService {
   }
 
   async updateLesson(lessonId: string, user: AuthUser, dto: UpdateLessonDto) {
-    await this.ownedLesson(lessonId, user);
-    return this.prisma.lesson.update({ where: { id: lessonId }, data: dto });
+    const lesson = await this.ownedLesson(lessonId, user);
+    this.checkMediaKey(dto.mediaKey);
+    const updated = await this.prisma.lesson.update({ where: { id: lessonId }, data: dto });
+    // Replacing an uploaded video with a link (or clearing it) frees the old file.
+    if (dto.mediaKey !== undefined && dto.mediaKey !== lesson.mediaKey) await this.dropVideo(lesson.mediaKey);
+    return updated;
+  }
+
+  /** Uploaded videos are attached only through attachVideo, so nobody can point at another teacher's file. */
+  private checkMediaKey(key?: string | null) {
+    if (key?.startsWith('upload:')) throw new BadRequestException('Upload the video file instead');
   }
 
   async deleteLesson(lessonId: string, user: AuthUser) {
-    await this.ownedLesson(lessonId, user);
+    const lesson = await this.ownedLesson(lessonId, user);
     await this.prisma.lesson.delete({ where: { id: lessonId } });
+    await this.dropVideo(lesson.mediaKey);
+  }
+
+  /**
+   * Uploads a recorded video for a lesson (course owner or admin). The file goes to the active
+   * storage driver and the lesson points at it; a previous uploaded video is deleted.
+   */
+  async attachVideo(lessonId: string, user: AuthUser, file: Express.Multer.File | undefined, durationSec?: number) {
+    let lesson;
+    try {
+      lesson = await this.ownedLesson(lessonId, user);
+    } catch (e) {
+      if (file?.path) require('fs').rmSync(file.path, { force: true });
+      throw e;
+    }
+    const up = await this.uploads.saveVideo(user.id, file);
+    const updated = await this.prisma.lesson.update({
+      where: { id: lessonId },
+      data: { mediaKey: `upload:${up.id}`, type: 'VIDEO', ...(durationSec ? { durationSec } : {}) },
+    });
+    await this.dropVideo(lesson.mediaKey);
+    const { mediaKey, ...rest } = updated;
+    return { ...rest, hasVideo: true, video: { id: up.id, size: up.size, originalName: up.originalName } };
+  }
+
+  async removeVideo(lessonId: string, user: AuthUser) {
+    const lesson = await this.ownedLesson(lessonId, user);
+    await this.prisma.lesson.update({ where: { id: lessonId }, data: { mediaKey: null } });
+    await this.dropVideo(lesson.mediaKey);
+  }
+
+  private async dropVideo(mediaKey: string | null) {
+    if (mediaKey?.startsWith('upload:')) await this.uploads.remove(mediaKey.slice(7));
+  }
+
+  /**
+   * Turns a lesson's mediaKey into something a player can open:
+   *  - "upload:<id>"   → a video uploaded here (signed link to our storage, Range-capable)
+   *  - "https://..."   → an external video (YouTube, Vimeo, any CDN) used as-is
+   *  - anything else   → a key on the Bunny CDN, signed with MEDIA_SIGNING_KEY
+   */
+  mediaUrl(mediaKey: string | null) {
+    if (!mediaKey) return null;
+    if (mediaKey.startsWith('upload:')) return this.uploads.link(mediaKey.slice(7), 4 * 3600);
+    if (/^https?:\/\//.test(mediaKey)) return mediaKey;
+    return this.media.sign(mediaKey);
   }
 
   /**
@@ -157,6 +234,48 @@ export class CoursesService {
     });
   }
 
+  /** Every course on the platform, for the admin's course manager. */
+  allCourses(q: AdminCourseQueryDto) {
+    return this.prisma.course.findMany({
+      where: {
+        ...(q.status ? { status: q.status } : {}),
+        ...(q.q ? { OR: [{ title: { contains: q.q, mode: 'insensitive' } }, { teacher: { name: { contains: q.q, mode: 'insensitive' } } }] } : {}),
+      },
+      orderBy: { updatedAt: 'desc' },
+      take: 200,
+      include: {
+        teacher: { select: { id: true, name: true } },
+        category: { select: { name: true } },
+        _count: { select: { enrollments: true, sections: true } },
+      },
+    });
+  }
+
+  /** Admin puts a course live or takes it down (e.g. a complaint), with a note to the teacher. */
+  async setStatus(courseId: string, adminId: string, dto: CourseStatusDto) {
+    const course = await this.prisma.course.findUnique({ where: { id: courseId } });
+    if (!course) throw new NotFoundException();
+    const updated = await this.prisma.course.update({
+      where: { id: courseId },
+      data: {
+        status: dto.status,
+        adminNote: dto.note ?? null,
+        ...(dto.status === 'PUBLISHED' ? { publishedAt: course.publishedAt ?? new Date() } : { isFeatured: false }),
+      },
+    });
+    if (course.teacherId !== adminId) {
+      await this.prisma.notification.create({
+        data: {
+          userId: course.teacherId,
+          title: 'Course status',
+          body: dto.status === 'PUBLISHED' ? `"${course.title}" is live.` : `"${course.title}" was taken down${dto.note ? `: ${dto.note}` : '.'}`,
+        },
+      });
+    }
+    await this.prisma.auditLog.create({ data: { actorId: adminId, action: `course.set_${dto.status.toLowerCase()}`, target: courseId } });
+    return updated;
+  }
+
   setFeatured(courseId: string, isFeatured: boolean) {
     return this.prisma.course.update({ where: { id: courseId }, data: { isFeatured } });
   }
@@ -179,10 +298,11 @@ export class CoursesService {
     if (query.level) where.level = query.level;
 
     const select = {
-      id: true, title: true, subtitle: true, thumbnailUrl: true, pricePaisa: true, isFree: true, level: true,
+      id: true, title: true, subtitle: true, thumbnailUrl: true, pricePaisa: true, originalPricePaisa: true, isFree: true, level: true,
       language: true, ratingAvg: true, ratingCount: true, isFeatured: true, publishedAt: true,
       teacher: { select: { id: true, name: true } },
-      category: { select: { name: true, slug: true } },
+      category: { select: { name: true, slug: true, color: true, icon: true } },
+      _count: { select: { enrollments: true } },
     } as const;
 
     const sort = query.sort ?? 'relevance';
@@ -221,8 +341,8 @@ export class CoursesService {
     const course = await this.prisma.course.findUnique({
       where: { id: courseId },
       include: {
-        teacher: { select: { id: true, name: true, avatarUrl: true, teacherProfile: { select: { headline: true } } } },
-        category: { select: { name: true, slug: true } },
+        teacher: { select: { id: true, name: true, avatarUrl: true, teacherProfile: { select: { headline: true, bio: true } } } },
+        category: { select: { name: true, slug: true, color: true, icon: true } },
         sections: { orderBy: { position: 'asc' }, include: { lessons: { orderBy: { position: 'asc' }, select: lessonPublic } } },
         _count: { select: { enrollments: true } },
       },
@@ -232,8 +352,22 @@ export class CoursesService {
     const enrolled = viewer
       ? !!(await this.prisma.enrollment.findFirst({ where: { userId: viewer.id, courseId, status: 'ACTIVE' } }))
       : false;
+    // Instructor card: how many live courses and students this teacher has.
+    const [teacherCourses, teacherStudents] = await Promise.all([
+      this.prisma.course.count({ where: { teacherId: course.teacherId, status: 'PUBLISHED' } }),
+      this.prisma.enrollment.count({ where: { course: { teacherId: course.teacherId }, status: 'ACTIVE' } }),
+    ]);
+    const totalSec = course.sections.reduce((t, s) => t + s.lessons.reduce((a, l) => a + l.durationSec, 0), 0);
+    const lessonCount = course.sections.reduce((t, s) => t + s.lessons.length, 0);
     const { adminNote, ...rest } = course;
-    return { ...rest, ...(canSeeUnpublished ? { adminNote } : {}), enrolled };
+    return {
+      ...rest,
+      ...(canSeeUnpublished ? { adminNote } : {}),
+      enrolled,
+      totalSec,
+      lessonCount,
+      teacherStats: { courses: teacherCourses, students: teacherStudents },
+    };
   }
 
   /**
@@ -254,7 +388,7 @@ export class CoursesService {
     }
     if (!allowed) throw new ForbiddenException('Enroll in this course to watch this lesson');
     const { mediaKey, section, ...rest } = lesson;
-    return { ...rest, courseId: course.id, mediaUrl: mediaKey ? this.media.sign(mediaKey) : null };
+    return { ...rest, courseId: course.id, mediaUrl: this.mediaUrl(mediaKey) };
   }
 
   // ---------- reviews ----------

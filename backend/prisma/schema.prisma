@@ -149,6 +149,11 @@ model Category {
   name     String
   slug     String     @unique
   parentId String?
+  /// Material icon name shown in the app (e.g. "code", "brush"); the app falls back to a generic icon.
+  icon     String?
+  /// Hex colour for the category chip, e.g. "#355457".
+  color    String?
+  position Int        @default(0)
   parent   Category?  @relation("tree", fields: [parentId], references: [id])
   children Category[] @relation("tree")
   courses  Course[]
@@ -177,7 +182,15 @@ model Course {
   description  String
   thumbnailUrl String?
   pricePaisa   Int          @default(0)
+  /// Optional "was" price shown struck through next to the real price.
+  originalPricePaisa Int?
   isFree       Boolean      @default(true)
+  /// "What you'll learn" bullet points.
+  outcomes     String[]     @default([])
+  /// "Requirements" bullet points.
+  requirements String[]     @default([])
+  /// "Who this course is for" bullet points.
+  audience     String[]     @default([])
   level        CourseLevel  @default(ALL)
   language     String       @default("bn")
   status       CourseStatus @default(DRAFT)
@@ -481,6 +494,10 @@ model SeekerProfile {
 enum UploadKind {
   CV
   LOGO
+  /// Course thumbnails and avatars: served from a permanent public link.
+  IMAGE
+  /// Recorded lesson videos: served from signed, expiring links with HTTP Range support.
+  VIDEO
 }
 
 /// A file kept on the server's disk (UPLOAD_DIR). Served only through signed, expiring links.
@@ -491,6 +508,8 @@ model Upload {
   mime         String
   size         Int
   originalName String
+  /// Where the bytes live in the active storage driver (local disk, Firebase, S3...). Null = the upload id.
+  storageKey   String?
   createdAt    DateTime         @default(now())
   owner        User             @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   seekers      SeekerProfile[]

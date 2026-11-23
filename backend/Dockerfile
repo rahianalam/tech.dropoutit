@@ -4,7 +4,7 @@ COPY package*.json ./
 RUN npm ci
 COPY . .
 RUN npx prisma generate && npm run build \
-  && npx tsc prisma/seed.ts --outDir dist/seed --esModuleInterop --skipLibCheck --target ES2022 --module commonjs
+  && npx tsc prisma/seed.ts prisma/demo.ts prisma/admin.ts --outDir dist/seed --esModuleInterop --skipLibCheck --target ES2022 --module commonjs
 
 FROM node:22-alpine
 WORKDIR /app

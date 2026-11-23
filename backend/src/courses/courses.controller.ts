@@ -1,7 +1,9 @@
-import { Body, Controller, Delete, Get, HttpCode, Param, ParseBoolPipe, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Param, ParseBoolPipe, ParseUUIDPipe, Patch, Post, Query, UploadedFile, UseInterceptors } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { videoUploadOptions } from '../uploads/uploads.module';
 import { AuthUser, CurrentUser, Public, Roles } from '../common/auth.decorators';
 import { ReviewDto } from '../bookings/bookings.module';
-import { CourseQueryDto, CreateCourseDto, LessonDto, ReviewCourseDto, SectionDto, UpdateCourseDto, UpdateLessonDto } from './courses.dto';
+import { AdminCourseQueryDto, CourseQueryDto, CourseStatusDto, CreateCourseDto, LessonDto, ReviewCourseDto, SectionDto, UpdateCourseDto, UpdateLessonDto } from './courses.dto';
 import { CoursesService } from './courses.service';
 
 const Id = (name = 'id') => Param(name, ParseUUIDPipe);
@@ -60,7 +62,26 @@ export class CoursesController {
   @Roles('TEACHER', 'ADMIN') @Delete('teacher/lessons/:id') @HttpCode(204)
   deleteLesson(@Id() id: string, @CurrentUser() u: AuthUser) { return this.courses.deleteLesson(id, u); }
 
+  /** Upload a recorded video for a lesson (multipart field "file"; optional "durationSec"). */
+  @Roles('TEACHER', 'ADMIN') @Post('teacher/lessons/:id/video')
+  @UseInterceptors(FileInterceptor('file', videoUploadOptions()))
+  uploadVideo(
+    @Id() id: string, @CurrentUser() u: AuthUser, @UploadedFile() file: Express.Multer.File, @Body('durationSec') durationSec?: string,
+  ) {
+    const d = Number(durationSec);
+    return this.courses.attachVideo(id, u, file, Number.isFinite(d) && d > 0 ? Math.round(d) : undefined);
+  }
+
+  @Roles('TEACHER', 'ADMIN') @Delete('teacher/lessons/:id/video') @HttpCode(204)
+  removeVideo(@Id() id: string, @CurrentUser() u: AuthUser) { return this.courses.removeVideo(id, u); }
+
   // admin
+  @Roles('ADMIN') @Get('admin/courses')
+  all(@Query() q: AdminCourseQueryDto) { return this.courses.allCourses(q); }
+
+  @Roles('ADMIN') @Post('admin/courses/:id/status')
+  setStatus(@Id() id: string, @CurrentUser() u: AuthUser, @Body() dto: CourseStatusDto) { return this.courses.setStatus(id, u.id, dto); }
+
   @Roles('ADMIN') @Get('admin/courses/review-queue')
   queue() { return this.courses.reviewQueue(); }
 
