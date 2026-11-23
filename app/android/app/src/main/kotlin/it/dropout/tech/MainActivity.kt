@@ -1,4 +1,4 @@
-package it.dropout.tech.techdropout
+package it.dropout.tech
 
 import io.flutter.embedding.android.FlutterActivity
 
