@@ -37,7 +37,8 @@ final routerProvider = Provider<GoRouter>((ref) {
       if (me == null && _needsLogin.any(loc.startsWith)) return '/login';
       if (me != null && (loc == '/login' || loc == '/register')) return '/';
       if (loc.startsWith('/admin') && !(me?.isAdmin ?? false)) return '/';
-      if (loc.startsWith('/teacher') && loc != '/teacher/apply' && !(me?.isTeacher ?? false)) return '/teacher/apply';
+      final canTeach = (me?.isTeacher ?? false) || ((me?.isAdmin ?? false) && loc.startsWith('/teacher/courses'));
+      if (loc.startsWith('/teacher') && loc != '/teacher/apply' && !canTeach) return '/teacher/apply';
       return null;
     },
     routes: [
@@ -63,6 +64,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/admin/applications/:id', builder: (_, s) => ApplicationReviewScreen(s.pathParameters['id']!)),
       GoRoute(path: '/admin/course-reviews', builder: (_, _) => const CourseReviewScreen()),
       GoRoute(path: '/admin/settings', builder: (_, _) => const SettingsScreen()),
+      GoRoute(path: '/admin/courses', builder: (_, _) => const TeacherDashboard(title: 'আমার রেকর্ডেড কোর্স')),
     ],
   );
 });

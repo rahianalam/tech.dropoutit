@@ -37,6 +37,15 @@ class AdminDashboard extends ConsumerWidget {
             const SizedBox(height: 16),
             Card(
               child: ListTile(
+                leading: const Icon(Icons.video_library_outlined),
+                title: const Text('আমার রেকর্ডেড কোর্স'),
+                subtitle: const Text('Tech.Dropout-এর অফিসিয়াল কোর্স, রিভিউ ছাড়াই পাবলিশ'),
+                onTap: () => context.push('/admin/courses'),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Card(
+              child: ListTile(
                 leading: const Icon(Icons.person_search_outlined),
                 title: const Text('টিচার আবেদন'),
                 trailing: Badge(label: Text('${s['pendingApplications']}'), isLabelVisible: s['pendingApplications'] > 0),

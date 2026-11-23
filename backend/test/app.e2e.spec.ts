@@ -187,6 +187,19 @@ describe('Tech.Dropout API (e2e)', () => {
     expect(detail.body.enrolled).toBe(true);
   });
 
+  it('admin publishes an official recorded course without review', async () => {
+    const c = await http.post(`${api}/teacher/courses`).set(auth('admin'))
+      .send({ title: 'Freelancing শুরু করার গাইড', description: 'Tech.Dropout টিমের অফিসিয়াল রেকর্ডেড কোর্স।', priceBdt: 500 }).expect(201);
+    const s = await http.post(`${api}/teacher/courses/${c.body.id}/sections`).set(auth('admin')).send({ title: 'শুরু' }).expect(201);
+    await http.post(`${api}/teacher/sections/${s.body.id}/lessons`).set(auth('admin')).send({ title: 'পরিচিতি', durationSec: 120 }).expect(201);
+    const published = await http.post(`${api}/teacher/courses/${c.body.id}/submit`).set(auth('admin')).expect(201);
+    expect(published.body.status).toBe('PUBLISHED');
+    await http.get(`${api}/courses/${c.body.id}`).expect(200);
+    const mine = await http.get(`${api}/teacher/courses`).set(auth('admin')).expect(200);
+    expect(mine.body).toHaveLength(1);
+    await prisma.course.update({ where: { id: c.body.id }, data: { status: 'DRAFT' } }); // keep later stats stable
+  });
+
   it('admin edits payout settings and sees stats', async () => {
     const s = await http.get(`${api}/admin/settings`).set(auth('admin')).expect(200);
     expect(s.body).toMatchObject({ courseCommissionBps: 3000, sessionCommissionBps: 2000, holdDays: 7, payoutSchedule: 'MONTHLY' });

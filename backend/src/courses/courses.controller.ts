@@ -20,10 +20,10 @@ export class CoursesController {
   lesson(@Id() id: string, @CurrentUser() user?: AuthUser) { return this.courses.lessonContent(id, user); }
 
   // teacher
-  @Roles('TEACHER') @Post('teacher/courses')
+  @Roles('TEACHER', 'ADMIN') @Post('teacher/courses')
   create(@CurrentUser() u: AuthUser, @Body() dto: CreateCourseDto) { return this.courses.create(u.id, dto); }
 
-  @Roles('TEACHER') @Get('teacher/courses')
+  @Roles('TEACHER', 'ADMIN') @Get('teacher/courses')
   mine(@CurrentUser() u: AuthUser) { return this.courses.mine(u.id); }
 
   @Roles('TEACHER', 'ADMIN') @Get('teacher/courses/:id')
@@ -32,7 +32,7 @@ export class CoursesController {
   @Roles('TEACHER', 'ADMIN') @Patch('teacher/courses/:id')
   update(@Id() id: string, @CurrentUser() u: AuthUser, @Body() dto: UpdateCourseDto) { return this.courses.update(id, u, dto); }
 
-  @Roles('TEACHER') @Post('teacher/courses/:id/submit')
+  @Roles('TEACHER', 'ADMIN') @Post('teacher/courses/:id/submit')
   submit(@Id() id: string, @CurrentUser() u: AuthUser) { return this.courses.submitForReview(id, u); }
 
   @Roles('TEACHER', 'ADMIN') @Post('teacher/courses/:id/sections')

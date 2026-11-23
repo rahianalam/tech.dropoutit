@@ -103,12 +103,21 @@ export class CoursesService {
     await this.prisma.lesson.delete({ where: { id: lessonId } });
   }
 
-  /** A course needs at least one lesson with content before it can go to review. */
+  /**
+   * A course needs at least one lesson before it can go to review.
+   * The admin's own (official Tech.Dropout) courses skip review and publish at once.
+   */
   async submitForReview(courseId: string, user: AuthUser) {
     const course = await this.owned(courseId, user);
     if (course.status === 'IN_REVIEW') throw new ConflictException('Already in review');
     const lessons = await this.prisma.lesson.count({ where: { section: { courseId } } });
     if (lessons === 0) throw new BadRequestException('Add at least one lesson before submitting');
+    if (user.roles.includes('ADMIN') && course.teacherId === user.id) {
+      return this.prisma.course.update({
+        where: { id: courseId },
+        data: { status: 'PUBLISHED', adminNote: null, publishedAt: course.publishedAt ?? new Date() },
+      });
+    }
     return this.prisma.course.update({ where: { id: courseId }, data: { status: 'IN_REVIEW', adminNote: null } });
   }
 

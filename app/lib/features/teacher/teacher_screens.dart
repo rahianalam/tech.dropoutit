@@ -137,7 +137,8 @@ class _TeacherApplyScreenState extends ConsumerState<TeacherApplyScreen> {
 final myCoursesProvider = FutureProvider.autoDispose<List<dynamic>>((ref) => ref.read(apiProvider).get('/teacher/courses'));
 
 class TeacherDashboard extends ConsumerWidget {
-  const TeacherDashboard({super.key});
+  const TeacherDashboard({super.key, this.title = 'টিচার ড্যাশবোর্ড'});
+  final String title;
 
   Future<void> _create(BuildContext context, WidgetRef ref) async {
     final title = TextEditingController();
@@ -180,7 +181,7 @@ class TeacherDashboard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final courses = ref.watch(myCoursesProvider);
     return Scaffold(
-      appBar: AppBar(title: const Text('টিচার ড্যাশবোর্ড')),
+      appBar: AppBar(title: Text(title)),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _create(context, ref),
         icon: const Icon(Icons.add),
@@ -252,6 +253,9 @@ class CourseEditorScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final course = ref.watch(editCourseProvider(id));
     final api = ref.read(apiProvider);
+    final me = ref.watch(authProvider).me;
+    // The admin's own courses publish directly, without review.
+    final official = (me?.isAdmin ?? false) && course.value?['teacherId'] == me?.id;
     return Scaffold(
       appBar: AppBar(title: Text(course.value?['title'] as String? ?? 'কোর্স')),
       body: AsyncView(
@@ -264,8 +268,9 @@ class CourseEditorScreen extends ConsumerWidget {
               trailing: c['status'] == 'IN_REVIEW'
                   ? null
                   : FilledButton(
-                      onPressed: () => _run(context, ref, () => api.post('/teacher/courses/$id/submit'), 'রিভিউয়ের জন্য জমা হয়েছে'),
-                      child: const Text('রিভিউতে পাঠান'),
+                      onPressed: () => _run(context, ref, () => api.post('/teacher/courses/$id/submit'),
+                          official ? 'কোর্স পাবলিশ হয়েছে' : 'রিভিউয়ের জন্য জমা হয়েছে'),
+                      child: Text(official ? (c['status'] == 'PUBLISHED' ? 'আপডেট পাবলিশ' : 'পাবলিশ করুন') : 'রিভিউতে পাঠান'),
                     ),
             ),
           ),

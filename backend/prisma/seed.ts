@@ -10,12 +10,18 @@ async function main() {
 
   const admin = await prisma.user.upsert({
     where: { email },
-    create: { name: 'Admin', email, passwordHash: await bcrypt.hash(password, 10) },
+    create: { name: 'Tech.Dropout', email, passwordHash: await bcrypt.hash(password, 10) },
     update: {},
   });
   for (const role of ['ADMIN', 'STUDENT'] as const) {
     await prisma.userRole.upsert({ where: { userId_role: { userId: admin.id, role } }, create: { userId: admin.id, role }, update: {} });
   }
+  // The admin also publishes official recorded courses, shown under this profile.
+  await prisma.teacherProfile.upsert({
+    where: { userId: admin.id },
+    create: { userId: admin.id, headline: 'Official Tech.Dropout courses', bio: 'Courses made by the Tech.Dropout team.', skills: [] },
+    update: {},
+  });
   await prisma.platformSettings.upsert({ where: { id: 1 }, create: { id: 1 }, update: {} });
 
   const categories = [
