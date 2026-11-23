@@ -32,6 +32,17 @@ class ProfileScreen extends ConsumerWidget {
             onTap: () => context.push('/teacher/apply'),
           ),
         ListTile(
+          leading: const Icon(Icons.badge_outlined),
+          title: const Text('জব প্রোফাইল ও CV'),
+          subtitle: Text(me.isSeeker ? 'আপডেট করুন' : 'চাকরি খুঁজতে প্রোফাইল তৈরি করুন'),
+          onTap: () => context.push('/jobs/profile'),
+        ),
+        ListTile(
+          leading: const Icon(Icons.business_center_outlined),
+          title: Text(me.isEmployer ? 'আমার কোম্পানি ও জব পোস্ট' : 'কোম্পানি হিসেবে জব পোস্ট করুন'),
+          onTap: () => context.push(me.isEmployer ? '/employer' : '/employer/setup'),
+        ),
+        ListTile(
           leading: const Icon(Icons.notifications_outlined),
           title: const Text('নোটিফিকেশন'),
           onTap: () => context.push('/notifications'),

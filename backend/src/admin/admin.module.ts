@@ -15,15 +15,17 @@ export class AdminController {
 
   @Get('stats')
   async stats() {
-    const [users, teachers, publishedCourses, enrollments, pendingApplications, coursesInReview] = await Promise.all([
+    const [users, teachers, publishedCourses, enrollments, pendingApplications, coursesInReview, jobsInReview, liveJobs] = await Promise.all([
       this.prisma.user.count(),
       this.prisma.userRole.count({ where: { role: 'TEACHER' } }),
       this.prisma.course.count({ where: { status: 'PUBLISHED' } }),
       this.prisma.enrollment.count({ where: { status: 'ACTIVE' } }),
       this.prisma.teacherApplication.count({ where: { status: 'PENDING' } }),
       this.prisma.course.count({ where: { status: 'IN_REVIEW' } }),
+      this.prisma.job.count({ where: { status: 'PENDING' } }),
+      this.prisma.job.count({ where: { status: 'LIVE' } }),
     ]);
-    return { users, teachers, publishedCourses, enrollments, pendingApplications, coursesInReview };
+    return { users, teachers, publishedCourses, enrollments, pendingApplications, coursesInReview, jobsInReview, liveJobs };
   }
 
   @Get('users')

@@ -36,23 +36,25 @@ model User {
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
 
-  teacherApplications TeacherApplication[] @relation("applicant")
+  teacherApplications  TeacherApplication[] @relation("applicant")
   reviewedApplications TeacherApplication[] @relation("reviewer")
-  teacherProfile      TeacherProfile?
-  portfolioItems      PortfolioItem[]
-  courses             Course[]
-  enrollments         Enrollment[]
-  reviews             Review[]
-  orders              Order[]
-  ledgerEntries       LedgerEntry[]
-  payouts             Payout[]
-  availabilityRules   AvailabilityRule[]
-  teacherBookings     Booking[]            @relation("bookingTeacher")
-  studentBookings     Booking[]            @relation("bookingStudent")
-  employerProfile     EmployerProfile?
-  jobApplications     JobApplication[]
-  notifications       Notification[]
-  refreshTokens       RefreshToken[]
+  teacherProfile       TeacherProfile?
+  portfolioItems       PortfolioItem[]
+  courses              Course[]
+  enrollments          Enrollment[]
+  reviews              Review[]
+  orders               Order[]
+  ledgerEntries        LedgerEntry[]
+  payouts              Payout[]
+  availabilityRules    AvailabilityRule[]
+  teacherBookings      Booking[]            @relation("bookingTeacher")
+  studentBookings      Booking[]            @relation("bookingStudent")
+  employerProfile      EmployerProfile?
+  seekerProfile        SeekerProfile?
+  jobApplications      JobApplication[]
+  uploads              Upload[]
+  notifications        Notification[]
+  refreshTokens        RefreshToken[]
 }
 
 model UserRole {
@@ -124,17 +126,17 @@ model PortfolioItem {
 }
 
 model TeacherProfile {
-  userId                 String   @id
-  headline               String
-  bio                    String
-  skills                 String[]
-  courseCommissionBps    Int? // per-teacher override, basis points (3000 = 30%)
-  sessionCommissionBps   Int?
-  payoutMethod           String?
-  payoutAccount          String?
-  createdAt              DateTime @default(now())
-  updatedAt              DateTime @updatedAt
-  user                   User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId               String   @id
+  headline             String
+  bio                  String
+  skills               String[]
+  courseCommissionBps  Int? // per-teacher override, basis points (3000 = 30%)
+  sessionCommissionBps Int?
+  payoutMethod         String?
+  payoutAccount        String?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+  user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 // ---------- Learning ----------
@@ -164,30 +166,30 @@ enum CourseLevel {
 }
 
 model Course {
-  id          String       @id @default(uuid())
-  teacherId   String
-  categoryId  String?
-  title       String
-  subtitle    String?
-  description String
+  id           String       @id @default(uuid())
+  teacherId    String
+  categoryId   String?
+  title        String
+  subtitle     String?
+  description  String
   thumbnailUrl String?
-  pricePaisa  Int          @default(0)
-  isFree      Boolean      @default(true)
-  level       CourseLevel  @default(ALL)
-  language    String       @default("bn")
-  status      CourseStatus @default(DRAFT)
-  adminNote   String?
-  isFeatured  Boolean      @default(false)
-  ratingAvg   Float        @default(0)
-  ratingCount Int          @default(0)
-  publishedAt DateTime?
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
-  teacher     User         @relation(fields: [teacherId], references: [id])
-  category    Category?    @relation(fields: [categoryId], references: [id])
-  sections    Section[]
-  enrollments Enrollment[]
-  reviews     Review[]
+  pricePaisa   Int          @default(0)
+  isFree       Boolean      @default(true)
+  level        CourseLevel  @default(ALL)
+  language     String       @default("bn")
+  status       CourseStatus @default(DRAFT)
+  adminNote    String?
+  isFeatured   Boolean      @default(false)
+  ratingAvg    Float        @default(0)
+  ratingCount  Int          @default(0)
+  publishedAt  DateTime?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  teacher      User         @relation(fields: [teacherId], references: [id])
+  category     Category?    @relation(fields: [categoryId], references: [id])
+  sections     Section[]
+  enrollments  Enrollment[]
+  reviews      Review[]
 
   @@index([status])
   @@index([teacherId])
@@ -303,11 +305,11 @@ model Order {
   updatedAt     DateTime      @updatedAt
   user          User          @relation(fields: [userId], references: [id])
   payments      Payment[]
-
-  @@index([status, createdAt])
   enrollment    Enrollment?
   booking       Booking?
   ledgerEntries LedgerEntry[]
+
+  @@index([status, createdAt])
 }
 
 model Payment {
@@ -337,19 +339,19 @@ enum LedgerStatus {
 }
 
 model LedgerEntry {
-  id             String       @id @default(uuid())
-  teacherId      String
-  orderId        String?
-  payoutId       String?
-  type           LedgerType
-  amountPaisa    Int
-  commissionBps  Int          @default(0)
-  status         LedgerStatus @default(PENDING)
-  availableAt    DateTime?
-  createdAt      DateTime     @default(now())
-  teacher        User         @relation(fields: [teacherId], references: [id])
-  order          Order?       @relation(fields: [orderId], references: [id])
-  payout         Payout?      @relation(fields: [payoutId], references: [id])
+  id            String       @id @default(uuid())
+  teacherId     String
+  orderId       String?
+  payoutId      String?
+  type          LedgerType
+  amountPaisa   Int
+  commissionBps Int          @default(0)
+  status        LedgerStatus @default(PENDING)
+  availableAt   DateTime?
+  createdAt     DateTime     @default(now())
+  teacher       User         @relation(fields: [teacherId], references: [id])
+  order         Order?       @relation(fields: [orderId], references: [id])
+  payout        Payout?      @relation(fields: [payoutId], references: [id])
 
   @@index([teacherId, status])
 }
@@ -395,15 +397,15 @@ model PlatformSettings {
 // ---------- Bookings (phase 3) ----------
 
 model AvailabilityRule {
-  id          String  @id @default(uuid())
+  id          String @id @default(uuid())
   teacherId   String
   weekday     Int // 0 = Sunday
   startMinute Int // minutes from 00:00 in teacher timezone
   endMinute   Int
-  slotMinutes Int     @default(60)
+  slotMinutes Int    @default(60)
   pricePaisa  Int
-  timezone    String  @default("Asia/Dhaka")
-  teacher     User    @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  timezone    String @default("Asia/Dhaka")
+  teacher     User   @relation(fields: [teacherId], references: [id], onDelete: Cascade)
 }
 
 enum BookingStatus {
@@ -415,28 +417,28 @@ enum BookingStatus {
 }
 
 model Booking {
-  id         String        @id @default(uuid())
-  teacherId  String
-  studentId  String
-  startAt    DateTime
-  endAt      DateTime
-  orderId    String?       @unique
-  status     BookingStatus @default(HELD)
-  heldUntil  DateTime?
-  meetingUrl String?
-  pricePaisa Int           @default(0)
-  reminded24 Boolean       @default(false)
-  reminded15 Boolean       @default(false)
+  id          String        @id @default(uuid())
+  teacherId   String
+  studentId   String
+  startAt     DateTime
+  endAt       DateTime
+  orderId     String?       @unique
+  status      BookingStatus @default(HELD)
+  heldUntil   DateTime?
+  meetingUrl  String?
+  pricePaisa  Int           @default(0)
+  reminded24  Boolean       @default(false)
+  reminded15  Boolean       @default(false)
   cancelledBy String?
   // 'live' while HELD/CONFIRMED/COMPLETED, NULL once cancelled or no-show.
   // Postgres treats NULLs as distinct, so the unique key below allows only
   // one live booking per teacher slot while keeping cancelled history.
-  slotLock   String?       @default("live")
-  createdAt  DateTime      @default(now())
-  teacher    User          @relation("bookingTeacher", fields: [teacherId], references: [id])
-  student    User          @relation("bookingStudent", fields: [studentId], references: [id])
-  order      Order?        @relation(fields: [orderId], references: [id])
-  review     Review?
+  slotLock    String?       @default("live")
+  createdAt   DateTime      @default(now())
+  teacher     User          @relation("bookingTeacher", fields: [teacherId], references: [id])
+  student     User          @relation("bookingStudent", fields: [studentId], references: [id])
+  order       Order?        @relation(fields: [orderId], references: [id])
+  review      Review?
 
   @@unique([teacherId, startAt, slotLock])
   @@index([studentId])
@@ -449,9 +451,47 @@ model EmployerProfile {
   companyName String
   logoUrl     String?
   website     String?
+  about       String?
+  location    String?
+  /// Verified employers' jobs go live without admin review.
   verified    Boolean  @default(false)
+  createdAt   DateTime @default(now())
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   jobs        Job[]
+}
+
+model SeekerProfile {
+  userId     String   @id
+  headline   String
+  about      String?
+  skills     String[]
+  location   String?
+  /// Uploaded CV (PDF) or, failing that, a link to one.
+  cvUploadId String?
+  cvLink     String?
+  openToWork Boolean  @default(true)
+  updatedAt  DateTime @updatedAt
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  cvUpload   Upload?  @relation(fields: [cvUploadId], references: [id], onDelete: SetNull)
+}
+
+enum UploadKind {
+  CV
+  LOGO
+}
+
+/// A file kept on the server's disk (UPLOAD_DIR). Served only through signed, expiring links.
+model Upload {
+  id           String           @id @default(uuid())
+  ownerId      String
+  kind         UploadKind
+  mime         String
+  size         Int
+  originalName String
+  createdAt    DateTime         @default(now())
+  owner        User             @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  seekers      SeekerProfile[]
+  applications JobApplication[]
 }
 
 enum JobType {
@@ -481,9 +521,14 @@ model Job {
   salaryMax    Int?
   deadline     DateTime?
   status       JobStatus        @default(PENDING)
+  rejectReason String?
+  publishedAt  DateTime?
   createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @default(now()) @updatedAt
   employer     EmployerProfile  @relation(fields: [employerId], references: [userId])
   applications JobApplication[]
+
+  @@index([status, publishedAt])
 }
 
 enum ApplicationStage {
@@ -498,14 +543,21 @@ model JobApplication {
   id          String           @id @default(uuid())
   jobId       String
   seekerId    String
-  cvUrl       String
+  /// CV as it was when they applied, so later profile edits don't change past applications.
+  cvUploadId  String?
+  cvLink      String?
   coverLetter String?
   stage       ApplicationStage @default(APPLIED)
+  /// Employer's private note.
+  note        String?
   createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @default(now()) @updatedAt
   job         Job              @relation(fields: [jobId], references: [id])
   seeker      User             @relation(fields: [seekerId], references: [id])
+  cvUpload    Upload?          @relation(fields: [cvUploadId], references: [id], onDelete: SetNull)
 
   @@unique([jobId, seekerId])
+  @@index([seekerId])
 }
 
 // ---------- Misc ----------

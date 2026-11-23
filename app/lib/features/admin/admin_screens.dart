@@ -55,6 +55,16 @@ class AdminDashboard extends ConsumerWidget {
             const SizedBox(height: 8),
             Card(
               child: ListTile(
+                leading: const Icon(Icons.work_outline),
+                title: const Text('জব রিভিউ ও কোম্পানি'),
+                subtitle: Text('${s['liveJobs'] ?? 0}টা জব লাইভ'),
+                trailing: Badge(label: Text('${s['jobsInReview'] ?? 0}'), isLabelVisible: (s['jobsInReview'] ?? 0) > 0),
+                onTap: () => context.push('/admin/jobs'),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Card(
+              child: ListTile(
                 leading: const Icon(Icons.fact_check_outlined),
                 title: const Text('কোর্স রিভিউ'),
                 trailing: Badge(label: Text('${s['coursesInReview']}'), isLabelVisible: s['coursesInReview'] > 0),
