@@ -46,7 +46,13 @@ Phase 4 (jobs) — done:
 - One application per job; the employer sees CV, skills, portfolio, cover letter and courses finished on Tech.Dropout, moves applicants through stages (new → shortlisted → interview → hired / rejected) and keeps private notes; the seeker is notified at each stage
 - Jobs close themselves after the deadline
 
-Next: phase 5 release (push notifications, store builds).
+Phase 5 (release readiness) — done:
+
+- Package name `it.dropout.tech`, app icon, release signing from `android/key.properties` (CI writes it from secrets)
+- GitHub Actions builds a test APK on every PR and a signed Play Store bundle on `main`
+- Push notifications through Firebase Cloud Messaging; off until configured, no Firebase files needed in the repo
+- Account deletion in the app (required by Google Play), privacy policy at `/privacy` and deletion instructions at `/delete-account`
+- Caddy reverse proxy with automatic HTTPS in `docker-compose.yml`
 The full data model for those phases is already in `backend/prisma/schema.prisma`.
 
 ## Run locally
@@ -76,14 +82,11 @@ Use `SSLCZ_BASE_URL=https://sandbox.sslcommerz.com` with sandbox credentials, th
 In the SSLCommerz merchant panel set the IPN URL to `https://api.tech.dropout.it/api/v1/payments/sslcommerz/ipn`.
 For local testing without SSLCommerz use `PAYMENT_GATEWAY=fake`.
 
-## Deploy (one VPS)
+## Deploy and release
+
+Step-by-step guide (Bengali): [docs/DEPLOY.md](docs/DEPLOY.md): VPS + Docker + Caddy (automatic HTTPS), secrets, backups, Android signing, Firebase push, Play Console.
 
 ```bash
 POSTGRES_PASSWORD=... docker compose up -d --build
-docker compose exec api npx ts-node prisma/seed.ts   # first admin (needs ADMIN_EMAIL / ADMIN_PASSWORD in backend/.env)
+docker compose exec api node dist/seed/seed.js   # first admin (ADMIN_EMAIL / ADMIN_PASSWORD in backend/.env)
 ```
-
-Put Nginx with Let's Encrypt in front: `api.tech.dropout.it` → `127.0.0.1:3000`.
-
-Release app builds point at production with
-`flutter build appbundle --dart-define=API_URL=https://api.tech.dropout.it/api/v1`.

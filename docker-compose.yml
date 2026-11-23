@@ -1,4 +1,4 @@
-# Production-style stack for one VPS. Nginx/HTTPS in front of `api` maps api.tech.dropout.it -> api:3000.
+# Production stack for one VPS: Caddy (HTTPS) -> api, Postgres, Redis. See docs/DEPLOY.md.
 services:
   db:
     image: postgres:16-alpine
@@ -21,6 +21,16 @@ services:
       UPLOAD_DIR: /data/uploads
     volumes: [uploads:/data/uploads]
     ports: ["127.0.0.1:3000:3000"]
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on: [api]
+    ports: ["80:80", "443:443"]
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./web:/srv/web:ro
+      - caddy_data:/data
 volumes:
+  caddy_data:
   pgdata:
   uploads:

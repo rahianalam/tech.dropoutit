@@ -3,7 +3,8 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm ci
 COPY . .
-RUN npx prisma generate && npm run build
+RUN npx prisma generate && npm run build \
+  && npx tsc prisma/seed.ts --outDir dist/seed --esModuleInterop --skipLibCheck --target ES2022 --module commonjs
 
 FROM node:22-alpine
 WORKDIR /app
