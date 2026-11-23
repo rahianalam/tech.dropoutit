@@ -1,0 +1,23 @@
+# Production-style stack for one VPS. Nginx/HTTPS in front of `api` maps api.tech.dropout.it -> api:3000.
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: techdropout
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+      POSTGRES_DB: techdropout
+    volumes: [pgdata:/var/lib/postgresql/data]
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+  api:
+    build: ./backend
+    restart: unless-stopped
+    depends_on: [db, redis]
+    env_file: ./backend/.env
+    environment:
+      DATABASE_URL: postgresql://techdropout:${POSTGRES_PASSWORD}@db:5432/techdropout
+    ports: ["127.0.0.1:3000:3000"]
+volumes:
+  pgdata:

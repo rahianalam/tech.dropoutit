@@ -1,0 +1,516 @@
+// Tech.Dropout data model. Money is stored in paisa (BDT * 100) as integers.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------- Users & roles ----------
+
+enum Role {
+  ADMIN
+  TEACHER
+  STUDENT
+  EMPLOYER
+  JOB_SEEKER
+}
+
+enum UserStatus {
+  ACTIVE
+  BLOCKED
+}
+
+model User {
+  id           String     @id @default(uuid())
+  name         String
+  email        String?    @unique
+  phone        String?    @unique
+  passwordHash String
+  avatarUrl    String?
+  status       UserStatus @default(ACTIVE)
+  roles        UserRole[]
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  teacherApplications TeacherApplication[] @relation("applicant")
+  reviewedApplications TeacherApplication[] @relation("reviewer")
+  teacherProfile      TeacherProfile?
+  portfolioItems      PortfolioItem[]
+  courses             Course[]
+  enrollments         Enrollment[]
+  reviews             Review[]
+  orders              Order[]
+  ledgerEntries       LedgerEntry[]
+  payouts             Payout[]
+  availabilityRules   AvailabilityRule[]
+  teacherBookings     Booking[]            @relation("bookingTeacher")
+  studentBookings     Booking[]            @relation("bookingStudent")
+  employerProfile     EmployerProfile?
+  jobApplications     JobApplication[]
+  notifications       Notification[]
+  refreshTokens       RefreshToken[]
+}
+
+model UserRole {
+  userId    String
+  role      Role
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, role])
+}
+
+model RefreshToken {
+  id        String    @id @default(uuid())
+  userId    String
+  tokenHash String
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+// ---------- Teachers ----------
+
+enum ApplicationStatus {
+  PENDING
+  CHANGES_REQUESTED
+  APPROVED
+  REJECTED
+}
+
+model TeacherApplication {
+  id           String            @id @default(uuid())
+  userId       String
+  headline     String
+  bio          String
+  skills       String[]
+  experience   String
+  demoVideoUrl String?
+  status       ApplicationStatus @default(PENDING)
+  adminNote    String?
+  reviewedById String?
+  reviewedAt   DateTime?
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+  user         User              @relation("applicant", fields: [userId], references: [id], onDelete: Cascade)
+  reviewedBy   User?             @relation("reviewer", fields: [reviewedById], references: [id])
+
+  @@index([status])
+}
+
+enum PortfolioType {
+  IMAGE
+  VIDEO
+  LINK
+  CERTIFICATE
+  CV
+}
+
+model PortfolioItem {
+  id        String        @id @default(uuid())
+  ownerId   String
+  type      PortfolioType
+  title     String
+  url       String
+  createdAt DateTime      @default(now())
+  owner     User          @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+}
+
+model TeacherProfile {
+  userId                 String   @id
+  headline               String
+  bio                    String
+  skills                 String[]
+  courseCommissionBps    Int? // per-teacher override, basis points (3000 = 30%)
+  sessionCommissionBps   Int?
+  payoutMethod           String?
+  payoutAccount          String?
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+  user                   User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ---------- Learning ----------
+
+model Category {
+  id       String     @id @default(uuid())
+  name     String
+  slug     String     @unique
+  parentId String?
+  parent   Category?  @relation("tree", fields: [parentId], references: [id])
+  children Category[] @relation("tree")
+  courses  Course[]
+}
+
+enum CourseStatus {
+  DRAFT
+  IN_REVIEW
+  PUBLISHED
+  REJECTED
+}
+
+enum CourseLevel {
+  BEGINNER
+  INTERMEDIATE
+  ADVANCED
+  ALL
+}
+
+model Course {
+  id          String       @id @default(uuid())
+  teacherId   String
+  categoryId  String?
+  title       String
+  subtitle    String?
+  description String
+  thumbnailUrl String?
+  pricePaisa  Int          @default(0)
+  isFree      Boolean      @default(true)
+  level       CourseLevel  @default(ALL)
+  language    String       @default("bn")
+  status      CourseStatus @default(DRAFT)
+  adminNote   String?
+  isFeatured  Boolean      @default(false)
+  ratingAvg   Float        @default(0)
+  ratingCount Int          @default(0)
+  publishedAt DateTime?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  teacher     User         @relation(fields: [teacherId], references: [id])
+  category    Category?    @relation(fields: [categoryId], references: [id])
+  sections    Section[]
+  enrollments Enrollment[]
+  reviews     Review[]
+
+  @@index([status])
+  @@index([teacherId])
+}
+
+model Section {
+  id       String   @id @default(uuid())
+  courseId String
+  title    String
+  position Int
+  course   Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  lessons  Lesson[]
+}
+
+enum LessonType {
+  VIDEO
+  PDF
+  QUIZ
+  TEXT
+}
+
+model Lesson {
+  id          String           @id @default(uuid())
+  sectionId   String
+  title       String
+  type        LessonType       @default(VIDEO)
+  mediaKey    String? // storage key; never exposed directly, served via signed URL
+  content     String?
+  durationSec Int              @default(0)
+  isPreview   Boolean          @default(false)
+  position    Int
+  section     Section          @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  progress    LessonProgress[]
+}
+
+enum EnrollmentStatus {
+  ACTIVE
+  REFUNDED
+}
+
+model Enrollment {
+  id          String           @id @default(uuid())
+  userId      String
+  courseId    String
+  orderId     String?          @unique
+  status      EnrollmentStatus @default(ACTIVE)
+  progressPct Int              @default(0)
+  completedAt DateTime?
+  createdAt   DateTime         @default(now())
+  user        User             @relation(fields: [userId], references: [id])
+  course      Course           @relation(fields: [courseId], references: [id])
+  order       Order?           @relation(fields: [orderId], references: [id])
+  progress    LessonProgress[]
+
+  @@unique([userId, courseId])
+}
+
+model LessonProgress {
+  enrollmentId String
+  lessonId     String
+  watchedSec   Int        @default(0)
+  completed    Boolean    @default(false)
+  updatedAt    DateTime   @updatedAt
+  enrollment   Enrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+  lesson       Lesson     @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+
+  @@id([enrollmentId, lessonId])
+}
+
+model Review {
+  id        String   @id @default(uuid())
+  userId    String
+  courseId  String?
+  bookingId String?  @unique
+  rating    Int
+  comment   String?
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id])
+  course    Course?  @relation(fields: [courseId], references: [id])
+  booking   Booking? @relation(fields: [bookingId], references: [id])
+
+  @@unique([userId, courseId])
+}
+
+// ---------- Money (phase 2) ----------
+
+enum OrderItemType {
+  COURSE
+  BOOKING
+  JOB_POST
+}
+
+enum OrderStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+  EXPIRED
+}
+
+model Order {
+  id            String        @id @default(uuid())
+  userId        String
+  itemType      OrderItemType
+  itemId        String
+  amountPaisa   Int
+  discountPaisa Int           @default(0)
+  status        OrderStatus   @default(PENDING)
+  tranId        String        @unique
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  user          User          @relation(fields: [userId], references: [id])
+  payments      Payment[]
+  enrollment    Enrollment?
+  booking       Booking?
+  ledgerEntries LedgerEntry[]
+}
+
+model Payment {
+  id          String    @id @default(uuid())
+  orderId     String
+  gateway     String
+  gatewayRef  String?
+  amountPaisa Int
+  feePaisa    Int       @default(0)
+  rawPayload  Json?
+  verifiedAt  DateTime?
+  createdAt   DateTime  @default(now())
+  order       Order     @relation(fields: [orderId], references: [id])
+}
+
+enum LedgerType {
+  EARNING
+  REFUND
+  PAYOUT
+}
+
+enum LedgerStatus {
+  PENDING
+  AVAILABLE
+  PAID
+  VOID
+}
+
+model LedgerEntry {
+  id             String       @id @default(uuid())
+  teacherId      String
+  orderId        String?
+  payoutId       String?
+  type           LedgerType
+  amountPaisa    Int
+  commissionBps  Int          @default(0)
+  status         LedgerStatus @default(PENDING)
+  availableAt    DateTime?
+  createdAt      DateTime     @default(now())
+  teacher        User         @relation(fields: [teacherId], references: [id])
+  order          Order?       @relation(fields: [orderId], references: [id])
+  payout         Payout?      @relation(fields: [payoutId], references: [id])
+
+  @@index([teacherId, status])
+}
+
+enum PayoutStatus {
+  DRAFT
+  APPROVED
+  PAID
+}
+
+model Payout {
+  id          String        @id @default(uuid())
+  teacherId   String
+  amountPaisa Int
+  method      String?
+  status      PayoutStatus  @default(DRAFT)
+  reference   String?
+  paidAt      DateTime?
+  createdAt   DateTime      @default(now())
+  teacher     User          @relation(fields: [teacherId], references: [id])
+  entries     LedgerEntry[]
+}
+
+enum PayoutSchedule {
+  WEEKLY
+  MONTHLY
+  MANUAL
+}
+
+// Singleton row (id = 1). Every value is editable from the admin panel.
+model PlatformSettings {
+  id                   Int            @id @default(1)
+  courseCommissionBps  Int            @default(3000)
+  sessionCommissionBps Int            @default(2000)
+  holdDays             Int            @default(7)
+  payoutSchedule       PayoutSchedule @default(MONTHLY)
+  payoutDayOfMonth     Int            @default(1)
+  minPayoutPaisa       Int            @default(100000)
+  updatedAt            DateTime       @updatedAt
+}
+
+// ---------- Bookings (phase 3) ----------
+
+model AvailabilityRule {
+  id          String  @id @default(uuid())
+  teacherId   String
+  weekday     Int // 0 = Sunday
+  startMinute Int // minutes from 00:00 in teacher timezone
+  endMinute   Int
+  slotMinutes Int     @default(60)
+  pricePaisa  Int
+  timezone    String  @default("Asia/Dhaka")
+  teacher     User    @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+}
+
+enum BookingStatus {
+  HELD
+  CONFIRMED
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+}
+
+model Booking {
+  id         String        @id @default(uuid())
+  teacherId  String
+  studentId  String
+  startAt    DateTime
+  endAt      DateTime
+  orderId    String?       @unique
+  status     BookingStatus @default(HELD)
+  heldUntil  DateTime?
+  meetingUrl String?
+  createdAt  DateTime      @default(now())
+  teacher    User          @relation("bookingTeacher", fields: [teacherId], references: [id])
+  student    User          @relation("bookingStudent", fields: [studentId], references: [id])
+  order      Order?        @relation(fields: [orderId], references: [id])
+  review     Review?
+
+  @@unique([teacherId, startAt])
+}
+
+// ---------- Jobs (phase 4) ----------
+
+model EmployerProfile {
+  userId      String   @id
+  companyName String
+  logoUrl     String?
+  website     String?
+  verified    Boolean  @default(false)
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  jobs        Job[]
+}
+
+enum JobType {
+  FULL_TIME
+  PART_TIME
+  REMOTE
+  CONTRACT
+  INTERNSHIP
+}
+
+enum JobStatus {
+  PENDING
+  LIVE
+  CLOSED
+  REJECTED
+}
+
+model Job {
+  id           String           @id @default(uuid())
+  employerId   String
+  title        String
+  description  String
+  skills       String[]
+  type         JobType
+  location     String?
+  salaryMin    Int?
+  salaryMax    Int?
+  deadline     DateTime?
+  status       JobStatus        @default(PENDING)
+  createdAt    DateTime         @default(now())
+  employer     EmployerProfile  @relation(fields: [employerId], references: [userId])
+  applications JobApplication[]
+}
+
+enum ApplicationStage {
+  APPLIED
+  SHORTLISTED
+  INTERVIEW
+  HIRED
+  REJECTED
+}
+
+model JobApplication {
+  id          String           @id @default(uuid())
+  jobId       String
+  seekerId    String
+  cvUrl       String
+  coverLetter String?
+  stage       ApplicationStage @default(APPLIED)
+  createdAt   DateTime         @default(now())
+  job         Job              @relation(fields: [jobId], references: [id])
+  seeker      User             @relation(fields: [seekerId], references: [id])
+
+  @@unique([jobId, seekerId])
+}
+
+// ---------- Misc ----------
+
+model Notification {
+  id        String    @id @default(uuid())
+  userId    String
+  title     String
+  body      String
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  actorId   String
+  action    String
+  target    String
+  meta      Json?
+  createdAt DateTime @default(now())
+}
