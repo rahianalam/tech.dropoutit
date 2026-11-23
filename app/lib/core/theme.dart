@@ -17,6 +17,12 @@ class Brand {
   static const canvas = Color(0xFFF5F9F9);
 
   /// Gradient used on the home banner, course placeholders and headers.
+  /// Instructor screens: warm orange from the logo's D into teal.
+  static const teachGradient = LinearGradient(
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+    colors: [tealDark, Color(0xFF4A3B30), Color(0xFFB8572B)],
+  );
   static const heroGradient = LinearGradient(
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,

@@ -68,4 +68,13 @@ void main() {
     await back(tester);
     expect(_where(router), '/search');
   });
+
+  testWidgets('back from the login page lands on Home instead of closing the app', (tester) async {
+    await boot(tester);
+    router.go('/learning'); // needs login, so the router opens the login page
+    await settle(tester);
+    expect(_where(router), '/login');
+    await back(tester);
+    expect(_where(router), '/');
+  });
 }

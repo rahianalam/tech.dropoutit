@@ -67,8 +67,17 @@ final routerProvider = Provider<GoRouter>((ref) {
       if (!auth.ready) return null;
       final loc = state.matchedLocation;
       final me = auth.me;
-      if (me == null && (_needsLogin.any((r) => _under(loc, r)) || loc.endsWith('/book'))) return '/login';
-      if (me != null && (loc == '/login' || loc == '/register')) return '/';
+      if (me == null && (_needsLogin.any((r) => _under(loc, r)) || loc.endsWith('/book'))) {
+        return Uri(path: '/login', queryParameters: {'from': state.uri.toString()}).toString();
+      }
+      if (me != null && (loc == '/login' || loc == '/register')) {
+        // Back to the page that asked for login; instructors land on their dashboard.
+        final from = state.uri.queryParameters['from'];
+        if (from != null && from.startsWith('/')) return from;
+        if (state.uri.queryParameters['as'] == 'teacher') return '/teacher';
+        if (me.isAdmin) return '/admin';
+        return '/';
+      }
       if (_under(loc, '/admin') && !(me?.isAdmin ?? false)) return '/';
       final canTeach = (me?.isTeacher ?? false) || ((me?.isAdmin ?? false) && loc.startsWith('/teacher/courses'));
       if (_under(loc, '/teacher') && loc != '/teacher/apply' && !canTeach) return '/teacher/apply';
@@ -76,8 +85,6 @@ final routerProvider = Provider<GoRouter>((ref) {
       return null;
     },
     routes: [
-      GoRoute(path: '/login', builder: (_, _) => const LoginScreen()),
-      GoRoute(path: '/register', builder: (_, _) => const LoginScreen(register: true)),
       ShellRoute(
         builder: (context, state, child) => _Shell(location: state.matchedLocation, child: child),
         routes: [
@@ -88,6 +95,9 @@ final routerProvider = Provider<GoRouter>((ref) {
             path: '/',
             builder: (_, _) => const HomeScreen(),
             routes: [
+              // Login sits on top of Home too, so back from it never closes the app.
+              GoRoute(parentNavigatorKey: rootKey, path: 'login', builder: (_, s) => LoginScreen(as: s.uri.queryParameters['as'])),
+              GoRoute(parentNavigatorKey: rootKey, path: 'register', builder: (_, s) => LoginScreen(register: true, as: s.uri.queryParameters['as'])),
               GoRoute(parentNavigatorKey: rootKey, path: 'courses/:id', builder: (_, s) => CourseDetailScreen(s.pathParameters['id']!)),
               GoRoute(parentNavigatorKey: rootKey, path: 'lessons/:id', builder: (_, s) => LessonScreen(s.pathParameters['id']!)),
               GoRoute(parentNavigatorKey: rootKey, path: 'teachers/:id', builder: (_, s) => TeacherProfileScreen(s.pathParameters['id']!)),

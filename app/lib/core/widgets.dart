@@ -148,10 +148,21 @@ class BrandWordmark extends StatelessWidget {
     final style = TextStyle(fontFamily: 'Poppins', fontSize: size, fontWeight: FontWeight.w700, color: c, letterSpacing: -0.3);
     return Row(mainAxisSize: MainAxisSize.min, children: [
       if (showMark) ...[BrandMark(size: size * 1.35, color: c), SizedBox(width: size * 0.35)],
-      Text.rich(TextSpan(style: style, children: const [
-        TextSpan(text: 'Tech.'),
-        TextSpan(text: 'D', style: TextStyle(color: Brand.orange)),
-        TextSpan(text: 'ropout'),
+      // Same as the logo: "Tech.Dropout IT" with an orange D tilted to the left.
+      Text.rich(TextSpan(style: style, children: [
+        const TextSpan(text: 'Tech.'),
+        WidgetSpan(
+          alignment: PlaceholderAlignment.baseline,
+          baseline: TextBaseline.alphabetic,
+          child: Padding(
+            padding: EdgeInsets.symmetric(horizontal: size * 0.04),
+            child: Transform.rotate(
+              angle: -0.27,
+              child: Text('D', style: style.copyWith(color: Brand.orange, fontWeight: FontWeight.w800)),
+            ),
+          ),
+        ),
+        const TextSpan(text: 'ropout IT'),
       ])),
     ]);
   }
