@@ -63,7 +63,13 @@ class AuthController extends Notifier<AuthState> {
     await reload();
   }
 
+  /// Runs while still signed in, e.g. to unregister this phone from push.
+  Future<void> Function()? beforeLogout;
+
   Future<void> logout() async {
+    try {
+      await beforeLogout?.call();
+    } catch (_) {}
     await _api.clear();
     state = const AuthState(ready: true);
   }

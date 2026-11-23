@@ -43,3 +43,9 @@ export class UpdateMeDto {
   @IsString()
   avatarUrl?: string;
 }
+
+export class DeleteAccountDto {
+  @IsString()
+  @Length(1, 200)
+  password: string;
+}
