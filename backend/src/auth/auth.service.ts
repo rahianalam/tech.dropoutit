@@ -71,6 +71,34 @@ export class AuthService {
     if (id) await this.prisma.refreshToken.updateMany({ where: { id, revokedAt: null }, data: { revokedAt: new Date() } });
   }
 
+  /**
+   * Change password (current password required). Every other signed-in device is logged out;
+   * the caller gets a fresh token pair so this device stays signed in.
+   */
+  async changePassword(userId: string, current: string, next: string) {
+    const user = await this.prisma.user.findUniqueOrThrow({ where: { id: userId } });
+    if (!(await bcrypt.compare(current, user.passwordHash))) throw new UnauthorizedException('Current password is wrong');
+    await this.prisma.user.update({ where: { id: userId }, data: { passwordHash: await bcrypt.hash(next, 10) } });
+    await this.prisma.refreshToken.updateMany({ where: { userId, revokedAt: null }, data: { revokedAt: new Date() } });
+    await this.prisma.auditLog.create({ data: { actorId: userId, action: 'user.change_password', target: userId } });
+    return this.issueTokens(userId);
+  }
+
+  /** Change the email and/or phone used to sign in (password required). */
+  async changeLogin(userId: string, password: string, email?: string, phone?: string) {
+    const user = await this.prisma.user.findUniqueOrThrow({ where: { id: userId } });
+    if (!(await bcrypt.compare(password, user.passwordHash))) throw new UnauthorizedException('Password is wrong');
+    const data: { email?: string; phone?: string } = {};
+    if (email) data.email = email.toLowerCase().trim();
+    if (phone) data.phone = normalizePhone(phone);
+    const taken = await this.prisma.user.findFirst({
+      where: { id: { not: userId }, OR: [data.email ? { email: data.email } : {}, data.phone ? { phone: data.phone } : {}].filter((c) => Object.keys(c).length) },
+    });
+    if (taken) throw new ConflictException('Another account already uses this email or phone');
+    await this.prisma.user.update({ where: { id: userId }, data });
+    await this.prisma.auditLog.create({ data: { actorId: userId, action: 'user.change_login', target: userId, meta: data } });
+  }
+
   private async issueTokens(userId: string) {
     const accessToken = await this.jwt.signAsync(
       { sub: userId },

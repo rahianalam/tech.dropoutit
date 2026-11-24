@@ -1,8 +1,8 @@
-import { Body, Controller, Get, HttpCode, Patch, Post } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, HttpCode, Patch, Post } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuthUser, CurrentUser, Public } from '../common/auth.decorators';
 import { AccountDeletionService } from './account-deletion.service';
-import { DeleteAccountDto, LoginDto, RefreshDto, RegisterDto, UpdateMeDto } from './auth.dto';
+import { ChangeLoginDto, ChangePasswordDto, DeleteAccountDto, LoginDto, RefreshDto, RegisterDto, UpdateMeDto } from './auth.dto';
 import { AuthService } from './auth.service';
 
 @Controller('auth')
@@ -51,6 +51,21 @@ export class AuthController {
   @Patch('me')
   async updateMe(@CurrentUser() user: AuthUser, @Body() dto: UpdateMeDto) {
     await this.prisma.user.update({ where: { id: user.id }, data: dto });
+    return this.me(user);
+  }
+
+  @HttpCode(200)
+  @Post('change-password')
+  changePassword(@CurrentUser() user: AuthUser, @Body() dto: ChangePasswordDto) {
+    return this.auth.changePassword(user.id, dto.currentPassword, dto.newPassword);
+  }
+
+  /** Change the email/phone used to sign in — this is how the admin changes their login ID. */
+  @HttpCode(200)
+  @Post('change-login')
+  async changeLogin(@CurrentUser() user: AuthUser, @Body() dto: ChangeLoginDto) {
+    if (!dto.email && !dto.phone) throw new BadRequestException('Give a new email or phone');
+    await this.auth.changeLogin(user.id, dto.password, dto.email, dto.phone);
     return this.me(user);
   }
 

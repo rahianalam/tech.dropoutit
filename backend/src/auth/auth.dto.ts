@@ -49,3 +49,14 @@ export class DeleteAccountDto {
   @Length(1, 200)
   password: string;
 }
+
+export class ChangePasswordDto {
+  @IsString() currentPassword: string;
+  @IsString() @MinLength(8) newPassword: string;
+}
+
+export class ChangeLoginDto {
+  @IsString() password: string;
+  @IsOptional() @IsEmail() email?: string;
+  @IsOptional() @Matches(/^(?:\+?880|0)1[3-9]\d{8}$/, { message: 'phone must be a valid Bangladeshi mobile number' }) phone?: string;
+}

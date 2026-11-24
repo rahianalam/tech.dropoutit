@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'config.dart';
+import 'i18n.dart';
 
 /// Thin API client. Adds the access token, refreshes it once on 401, and turns
 /// server errors into [ApiError] with the server's message.
@@ -79,7 +80,9 @@ class Api {
   Future<T> _call<T>(Future<Response> Function() fn) async {
     try {
       final res = await fn();
-      return res.data as T;
+      // NestJS sends an empty body for a null result (e.g. "no application yet").
+      final data = res.data;
+      return (data is String && data.isEmpty ? null : data) as T;
     } on DioException catch (e) {
       throw ApiError.from(e);
     }
@@ -94,7 +97,7 @@ class ApiError implements Exception {
 
   factory ApiError.from(DioException e) {
     final data = e.response?.data;
-    var message = 'নেটওয়ার্ক সমস্যা, আবার চেষ্টা করুন';
+    var message = t('Network problem, please try again', 'নেটওয়ার্ক সমস্যা, আবার চেষ্টা করুন');
     if (data is Map && data['message'] != null) {
       final m = data['message'];
       message = m is List ? m.join('\n') : m.toString();

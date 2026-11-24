@@ -21,6 +21,7 @@ import { PushModule } from './push/push.module';
 import { LegalModule } from './legal/legal.module';
 import { UploadsModule } from './uploads/uploads.module';
 import { BookingsModule } from './bookings/bookings.module';
+import { StorageModule } from './storage/storage';
 
 @Controller()
 class HealthController {
@@ -33,6 +34,7 @@ class HealthController {
     JwtModule.register({ global: true }),
     ScheduleModule.forRoot(),
     PrismaModule,
+    StorageModule,
     AuthModule,
     TeachersModule,
     CategoriesModule,

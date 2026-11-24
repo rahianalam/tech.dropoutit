@@ -1,5 +1,5 @@
 name: techdropout
-description: "A new Flutter project."
+description: "Tech.Dropout IT — learn skills, book mentors, find jobs."
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
@@ -69,6 +69,30 @@ flutter:
   # the material Icons class.
   uses-material-design: true
 
+  assets:
+    - assets/brand/
+
+  # Poppins for English, Hind Siliguri for Bangla (both SIL Open Font License).
+  fonts:
+    - family: Poppins
+      fonts:
+        - asset: assets/fonts/Poppins_400Regular.ttf
+        - asset: assets/fonts/Poppins_500Medium.ttf
+          weight: 500
+        - asset: assets/fonts/Poppins_600SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/Poppins_700Bold.ttf
+          weight: 700
+    - family: HindSiliguri
+      fonts:
+        - asset: assets/fonts/HindSiliguri_400Regular.ttf
+        - asset: assets/fonts/HindSiliguri_500Medium.ttf
+          weight: 500
+        - asset: assets/fonts/HindSiliguri_600SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/HindSiliguri_700Bold.ttf
+          weight: 700
+
   # To add assets to your application, add an assets section, like this:
   # assets:
   #   - images/a_dot_burr.jpeg
@@ -103,11 +127,11 @@ flutter:
 flutter_launcher_icons:
   image_path: assets/icon/icon.png
   android: true
-  adaptive_icon_background: "#5B3DF5"
+  adaptive_icon_background: "#355457"
   adaptive_icon_foreground: assets/icon/icon_foreground.png
   ios: true
   remove_alpha_ios: true
   web:
     generate: true
-    background_color: "#5B3DF5"
-    theme_color: "#5B3DF5"
+    background_color: "#355457"
+    theme_color: "#355457"

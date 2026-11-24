@@ -1,27 +1,28 @@
 import 'package:intl/intl.dart';
 import 'package:material_ui/material_ui.dart';
+import '../../core/i18n.dart';
 
-const jobTypes = {
-  'FULL_TIME': 'ফুল টাইম',
-  'PART_TIME': 'পার্ট টাইম',
-  'REMOTE': 'রিমোট',
-  'CONTRACT': 'কন্ট্রাক্ট',
-  'INTERNSHIP': 'ইন্টার্নশিপ',
+Map<String, String> get jobTypes => {
+  'FULL_TIME': t('Full time', 'ফুল টাইম'),
+  'PART_TIME': t('Part time', 'পার্ট টাইম'),
+  'REMOTE': t('Remote', 'রিমোট'),
+  'CONTRACT': t('Contract', 'কন্ট্রাক্ট'),
+  'INTERNSHIP': t('Internship', 'ইন্টার্নশিপ'),
 };
 
-const stages = {
-  'APPLIED': 'নতুন',
-  'SHORTLISTED': 'শর্টলিস্টেড',
-  'INTERVIEW': 'ইন্টারভিউ',
-  'HIRED': 'নিয়োগ',
-  'REJECTED': 'বাদ',
+Map<String, String> get stages => {
+  'APPLIED': t('New', 'নতুন'),
+  'SHORTLISTED': t('Shortlisted', 'শর্টলিস্টেড'),
+  'INTERVIEW': t('Interview', 'ইন্টারভিউ'),
+  'HIRED': t('Hired', 'নিয়োগ'),
+  'REJECTED': t('Rejected', 'বাদ'),
 };
 
-const jobStatuses = {
-  'PENDING': 'রিভিউতে আছে',
-  'LIVE': 'লাইভ',
-  'CLOSED': 'বন্ধ',
-  'REJECTED': 'অনুমোদন হয়নি',
+Map<String, String> get jobStatuses => {
+  'PENDING': t('In review', 'রিভিউতে আছে'),
+  'LIVE': t('Live', 'লাইভ'),
+  'CLOSED': t('Closed', 'বন্ধ'),
+  'REJECTED': t('Not approved', 'অনুমোদন হয়নি'),
 };
 
 final _n = NumberFormat.decimalPattern('en_IN');
@@ -32,13 +33,13 @@ String? salary(Map<String, dynamic> job) {
   final lo = job['salaryMin'] as int?;
   final hi = job['salaryMax'] as int?;
   if (lo == null && hi == null) return null;
-  if (lo != null && hi != null) return '৳${_n.format(lo)} – ৳${_n.format(hi)} / মাস';
-  return '৳${_n.format(lo ?? hi)} / মাস';
+  if (lo != null && hi != null) return t('৳${_n.format(lo)} – ৳${_n.format(hi)} / month', '৳${_n.format(lo)} – ৳${_n.format(hi)} / মাস');
+  return t('৳${_n.format(lo ?? hi)} / month', '৳${_n.format(lo ?? hi)} / মাস');
 }
 
 String? deadline(Map<String, dynamic> job) {
   final d = job['deadline'] as String?;
-  return d == null ? null : 'শেষ তারিখ ${deadlineFormat.format(DateTime.parse(d).toLocal())}';
+  return d == null ? null : t('Deadline ${deadlineFormat.format(DateTime.parse(d).toLocal())}', 'শেষ তারিখ ${deadlineFormat.format(DateTime.parse(d).toLocal())}');
 }
 
 Color stageColor(BuildContext context, String stage) {

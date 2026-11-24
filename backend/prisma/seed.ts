@@ -24,16 +24,21 @@ async function main() {
   });
   await prisma.platformSettings.upsert({ where: { id: 1 }, create: { id: 1 }, update: {} });
 
+  // name, slug, app icon, chip colour (from the logo palette and friends)
   const categories = [
-    ['Web Development', 'web-development'],
-    ['App Development', 'app-development'],
-    ['Graphics Design', 'graphics-design'],
-    ['Digital Marketing', 'digital-marketing'],
-    ['Freelancing', 'freelancing'],
-    ['Spoken English', 'spoken-english'],
+    ['Web Development', 'web-development', 'code', '#355457'],
+    ['App Development', 'app-development', 'phone', '#2F6F8F'],
+    ['Graphics Design', 'graphics-design', 'brush', '#E07A45'],
+    ['Digital Marketing', 'digital-marketing', 'campaign', '#B5508A'],
+    ['Freelancing', 'freelancing', 'work', '#3E8E6A'],
+    ['Spoken English', 'spoken-english', 'translate', '#6B5BD2'],
+    ['Data & AI', 'data-ai', 'analytics', '#1F7A8C'],
+    ['Office & Productivity', 'office-productivity', 'table', '#8C6D1F'],
   ];
-  for (const [name, slug] of categories) {
-    await prisma.category.upsert({ where: { slug }, create: { name, slug }, update: {} });
+  for (const [i, [name, slug, icon, color]] of categories.entries()) {
+    const existing = await prisma.category.findUnique({ where: { slug } });
+    if (!existing) await prisma.category.create({ data: { name, slug, icon, color, position: i } });
+    else if (!existing.icon) await prisma.category.update({ where: { slug }, data: { icon, color, position: i } });
   }
   console.log(`Admin ready: ${email}`);
 }

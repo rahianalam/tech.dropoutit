@@ -19,6 +19,8 @@ services:
     environment:
       DATABASE_URL: postgresql://techdropout:${POSTGRES_PASSWORD}@db:5432/techdropout
       UPLOAD_DIR: /data/uploads
+      # big video uploads land here first, on the same disk, so moving them is instant
+      UPLOAD_TMP_DIR: /data/uploads/tmp
     volumes: [uploads:/data/uploads]
     ports: ["127.0.0.1:3000:3000"]
   caddy:

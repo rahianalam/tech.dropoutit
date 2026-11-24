@@ -53,6 +53,16 @@ Phase 5 (release readiness) — done:
 - Push notifications through Firebase Cloud Messaging; off until configured, no Firebase files needed in the repo
 - Account deletion in the app (required by Google Play), privacy policy at `/privacy` and deletion instructions at `/delete-account`
 - Caddy reverse proxy with automatic HTTPS in `docker-compose.yml`
+
+Phase 6 (redesign and content) — done:
+
+- New design system built from the logo colors (teal, cyan, orange), Poppins + Hind Siliguri, light and dark themes; research and principles in [docs/DESIGN.md](docs/DESIGN.md)
+- English by default with a Bangla/English toggle in the top bar (remembered on the device)
+- Udemy-style home, search with filters and sorting, course page, lesson player, My learning with resume cards
+- Recorded video upload for admin and teachers (up to 2 GB, HTTP Range streaming, signed links); storage sits behind one `StorageDriver`, so it can move to Firebase/S3 later ([docs/STORAGE.md](docs/STORAGE.md))
+- Full admin panel: all courses, categories, users and roles, activity log, admin login and password ([docs/ADMIN.md](docs/ADMIN.md))
+- Demo content: `node dist/seed/demo.js` (remove with `--remove`)
+
 The full data model for those phases is already in `backend/prisma/schema.prisma`.
 
 ## Run locally

@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:material_ui/material_ui.dart';
+import '../../core/i18n.dart';
 import '../../core/auth.dart';
 import '../../core/format.dart';
 import '../../core/widgets.dart';
@@ -8,8 +9,8 @@ import '../../core/widgets.dart';
 final payoutsProvider = FutureProvider.autoDispose<List<dynamic>>((ref) => ref.read(apiProvider).get('/admin/payouts'));
 final revenueProvider = FutureProvider.autoDispose<Map<String, dynamic>>((ref) => ref.read(apiProvider).get('/admin/revenue'));
 
-const _methods = {'bkash': 'bKash', 'nagad': 'Nagad', 'rocket': 'Rocket', 'bank': 'ব্যাংক'};
-const _status = {'DRAFT': 'খসড়া', 'APPROVED': 'অনুমোদিত', 'PAID': 'পাঠানো হয়েছে'};
+Map<String, String> get _methods => {'bkash': 'bKash', 'nagad': 'Nagad', 'rocket': 'Rocket', 'bank': t('Bank', 'ব্যাংক')};
+Map<String, String> get _status => {'DRAFT': t('Draft', 'খসড়া'), 'APPROVED': t('Approved', 'অনুমোদিত'), 'PAID': t('Sent', 'পাঠানো হয়েছে')};
 
 /// Draft → approve → send money (bKash/Nagad/bank) → record the reference.
 class PayoutsScreen extends ConsumerWidget {
@@ -32,11 +33,11 @@ class PayoutsScreen extends ConsumerWidget {
     final revenue = ref.watch(revenueProvider).value;
     final api = ref.read(apiProvider);
     return Scaffold(
-      appBar: AppBar(title: const Text('টিচার পেআউট')),
+      appBar: AppBar(title: Text(t('Teacher payouts', 'টিচার পেআউট'))),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _run(context, ref, () => api.post('/admin/payouts/generate'), 'পেআউট খসড়া তৈরি হয়েছে'),
+        onPressed: () => _run(context, ref, () => api.post('/admin/payouts/generate'), t('Payout drafts created', 'পেআউট খসড়া তৈরি হয়েছে')),
         icon: const Icon(Icons.playlist_add),
-        label: const Text('এখন পেআউট তৈরি'),
+        label: Text(t('Create payouts now', 'এখন পেআউট তৈরি')),
       ),
       body: AsyncView(
         value: payouts,
@@ -47,16 +48,16 @@ class PayoutsScreen extends ConsumerWidget {
               child: Padding(
                 padding: const EdgeInsets.all(16),
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text('মোট বিক্রি ${taka(revenue['grossPaisa'] as int)} (${revenue['paidOrders']} অর্ডার)'),
-                  Text('গেটওয়ে ফি ${taka(revenue['gatewayFeesPaisa'] as int)}'),
-                  Text('টিচারদের পাওনা ${taka(revenue['teacherOwedPaisa'] as int)} · পাঠানো ${taka(revenue['teacherPaidPaisa'] as int)}'),
+                  Text(t('Total sales ${taka(revenue['grossPaisa'] as int)} (${revenue['paidOrders']} orders)', 'মোট বিক্রি ${taka(revenue['grossPaisa'] as int)} (${revenue['paidOrders']} অর্ডার)')),
+                  Text(t('Gateway fees ${taka(revenue['gatewayFeesPaisa'] as int)}', 'গেটওয়ে ফি ${taka(revenue['gatewayFeesPaisa'] as int)}')),
+                  Text(t('Owed to teachers ${taka(revenue['teacherOwedPaisa'] as int)} · sent ${taka(revenue['teacherPaidPaisa'] as int)}', 'টিচারদের পাওনা ${taka(revenue['teacherOwedPaisa'] as int)} · পাঠানো ${taka(revenue['teacherPaidPaisa'] as int)}')),
                   const SizedBox(height: 4),
-                  Text('প্ল্যাটফর্মের নিট আয় ${taka(revenue['platformNetPaisa'] as int)}', style: Theme.of(context).textTheme.titleMedium),
+                  Text(t('Platform net income ${taka(revenue['platformNetPaisa'] as int)}', 'প্ল্যাটফর্মের নিট আয় ${taka(revenue['platformNetPaisa'] as int)}'), style: Theme.of(context).textTheme.titleMedium),
                 ]),
               ),
             ),
           const SizedBox(height: 16),
-          if (list.isEmpty) const EmptyState('কোনো পেআউট নেই। শিডিউল অনুযায়ী খসড়া আপনা থেকে তৈরি হবে।', icon: Icons.payments_outlined),
+          if (list.isEmpty) EmptyState(t('No payouts. Drafts are created automatically on schedule.', 'কোনো পেআউট নেই। শিডিউল অনুযায়ী খসড়া আপনা থেকে তৈরি হবে।'), icon: Icons.payments_outlined),
           for (final p in list)
             Card(
               margin: const EdgeInsets.only(bottom: 12),
@@ -64,16 +65,16 @@ class PayoutsScreen extends ConsumerWidget {
                 ListTile(
                   title: Text('${p['teacher']['name']} · ${taka(p['amountPaisa'] as int)}'),
                   subtitle: Text([
-                    p['account'] == null ? 'পেআউট অ্যাকাউন্ট দেননি' : '${_methods[p['method']] ?? p['method']}: ${p['account']}',
+                    p['account'] == null ? t('No payout account added', 'পেআউট অ্যাকাউন্ট দেননি') : '${_methods[p['method']] ?? p['method']}: ${p['account']}',
                     _status[p['status']]!,
-                    if (p['reference'] != null) 'রেফ: ${p['reference']}',
+                    if (p['reference'] != null) t('Ref: ${p['reference']}', 'রেফ: ${p['reference']}'),
                   ].join(' · ')),
                 ),
                 if (p['status'] != 'PAID')
                   OverflowBar(alignment: MainAxisAlignment.end, children: [
-                    TextButton(onPressed: () => _run(context, ref, () => api.delete('/admin/payouts/${p['id']}'), 'বাতিল হয়েছে'), child: const Text('বাতিল')),
+                    TextButton(onPressed: () => _run(context, ref, () => api.delete('/admin/payouts/${p['id']}'), t('Cancelled', 'বাতিল হয়েছে')), child: Text(t('Cancel', 'বাতিল'))),
                     if (p['status'] == 'DRAFT')
-                      FilledButton(onPressed: () => _run(context, ref, () => api.post('/admin/payouts/${p['id']}/approve'), 'অনুমোদিত'), child: const Text('অনুমোদন')),
+                      FilledButton(onPressed: () => _run(context, ref, () => api.post('/admin/payouts/${p['id']}/approve'), t('Approved', 'অনুমোদিত')), child: Text(t('Approve', 'অনুমোদন'))),
                     if (p['status'] == 'APPROVED')
                       FilledButton(
                         onPressed: () async {
@@ -81,16 +82,16 @@ class PayoutsScreen extends ConsumerWidget {
                           final ok = await showDialog<bool>(
                             context: context,
                             builder: (ctx) => AlertDialog(
-                              title: const Text('টাকা পাঠিয়েছেন?'),
-                              content: TextField(controller: ref0, decoration: const InputDecoration(labelText: 'ট্রানজ্যাকশন আইডি / রেফারেন্স')),
-                              actions: [FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('পাঠানো হয়েছে'))],
+                              title: Text(t('Money sent?', 'টাকা পাঠিয়েছেন?')),
+                              content: TextField(controller: ref0, decoration: InputDecoration(labelText: t('Transaction ID / reference', 'ট্রানজ্যাকশন আইডি / রেফারেন্স'))),
+                              actions: [FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Text(t('Sent', 'পাঠানো হয়েছে')))],
                             ),
                           );
                           if (ok == true && context.mounted) {
-                            await _run(context, ref, () => api.post('/admin/payouts/${p['id']}/paid', {'reference': ref0.text.trim()}), 'পেআউট সম্পন্ন');
+                            await _run(context, ref, () => api.post('/admin/payouts/${p['id']}/paid', {'reference': ref0.text.trim()}), t('Payout completed', 'পেআউট সম্পন্ন'));
                           }
                         },
-                        child: const Text('পাঠানো হয়েছে'),
+                        child: Text(t('Sent', 'পাঠানো হয়েছে')),
                       ),
                     const SizedBox(width: 8),
                   ]),
@@ -111,27 +112,27 @@ class OrdersScreen extends ConsumerWidget {
     final orders = ref.watch(ordersProvider);
     final date = DateFormat('d MMM y, h:mm a');
     return Scaffold(
-      appBar: AppBar(title: const Text('পেইড অর্ডার')),
+      appBar: AppBar(title: Text(t('Paid orders', 'পেইড অর্ডার'))),
       body: AsyncView(
         value: orders,
         data: (list) => list.isEmpty
-            ? const EmptyState('এখনো কোনো পেইড অর্ডার নেই')
+            ? EmptyState(t('No paid orders yet', 'এখনো কোনো পেইড অর্ডার নেই'))
             : ListView(children: [
                 for (final o in list)
                   ListTile(
                     title: Text('${o['user']['name']} · ${taka(o['amountPaisa'] as int)}'),
                     subtitle: Text('${o['tranId']} · ${date.format(DateTime.parse(o['createdAt'] as String).toLocal())}'),
                     trailing: TextButton(
-                      child: const Text('রিফান্ড'),
+                      child: Text(t('Refund', 'রিফান্ড')),
                       onPressed: () async {
                         final ok = await showDialog<bool>(
                           context: context,
                           builder: (ctx) => AlertDialog(
-                            title: const Text('রিফান্ড রেকর্ড করবেন?'),
-                            content: const Text('স্টুডেন্টের অ্যাক্সেস বন্ধ হবে এবং টিচারের আয় থেকে কাটা হবে। টাকা ফেরত SSLCommerz প্যানেল থেকে দিন।'),
+                            title: Text(t('Record a refund?', 'রিফান্ড রেকর্ড করবেন?')),
+                            content: Text(t('The student loses access and the amount is deducted from the teacher\'s earnings. Return the money from the SSLCommerz panel.', 'স্টুডেন্টের অ্যাক্সেস বন্ধ হবে এবং টিচারের আয় থেকে কাটা হবে। টাকা ফেরত SSLCommerz প্যানেল থেকে দিন।')),
                             actions: [
-                              TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('না')),
-                              FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('রিফান্ড')),
+                              TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(t('No', 'না'))),
+                              FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Text(t('Refund', 'রিফান্ড'))),
                             ],
                           ),
                         );

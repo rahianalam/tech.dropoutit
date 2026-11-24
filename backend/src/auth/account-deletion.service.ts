@@ -1,3 +1,4 @@
+import { UploadKind } from '@prisma/client';
 import { ConflictException, ForbiddenException, Injectable, UnauthorizedException } from '@nestjs/common';
 import * as bcrypt from 'bcryptjs';
 import { randomBytes } from 'crypto';
@@ -25,7 +26,9 @@ export class AccountDeletionService {
     });
     if (upcoming > 0) throw new ConflictException('You have upcoming sessions. Cancel or finish them first.');
 
-    const files = await this.prisma.upload.findMany({ where: { ownerId: userId }, select: { id: true } });
+    // Personal files go; course videos and thumbnails stay, because enrolled students keep access.
+    const personal = { ownerId: userId, kind: { in: ['CV', 'LOGO'] as UploadKind[] } };
+    const files = await this.prisma.upload.findMany({ where: personal, select: { id: true, storageKey: true } });
     await this.prisma.$transaction([
       this.prisma.user.update({
         where: { id: userId },
@@ -49,10 +52,10 @@ export class AccountDeletionService {
       // Hide their courses and jobs from everyone new; enrolled students keep access.
       this.prisma.course.updateMany({ where: { teacherId: userId, status: { in: ['PUBLISHED', 'IN_REVIEW'] } }, data: { status: 'DRAFT' } }),
       this.prisma.job.updateMany({ where: { employerId: userId, status: { in: ['LIVE', 'PENDING'] } }, data: { status: 'CLOSED' } }),
-      this.prisma.upload.deleteMany({ where: { ownerId: userId } }),
+      this.prisma.upload.deleteMany({ where: personal }),
       this.prisma.userRole.deleteMany({ where: { userId } }),
       this.prisma.auditLog.create({ data: { actorId: userId, action: 'user.delete_self', target: userId } }),
     ]);
-    for (const f of files) this.uploads.removeFile(f.id);
+    for (const f of files) await this.uploads.removeFile(f);
   }
 }

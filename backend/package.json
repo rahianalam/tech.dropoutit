@@ -10,7 +10,9 @@
     "prisma:migrate": "prisma migrate deploy",
     "seed": "ts-node prisma/seed.ts",
     "lint": "tsc --noEmit -p tsconfig.json",
-    "test": "jest --runInBand"
+    "test": "jest --runInBand",
+    "seed:demo": "ts-node prisma/demo.ts",
+    "admin:reset": "ts-node prisma/admin.ts"
   },
   "prisma": {
     "seed": "ts-node prisma/seed.ts"
