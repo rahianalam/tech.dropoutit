@@ -5,6 +5,7 @@ import '../../core/i18n.dart';
 import '../../core/auth.dart';
 import '../../core/format.dart';
 import '../../core/widgets.dart';
+import 'instructor_screens.dart';
 
 final earningsProvider = FutureProvider.autoDispose<Map<String, dynamic>>((ref) => ref.read(apiProvider).get('/teacher/earnings'));
 
@@ -101,14 +102,10 @@ class EarningsScreen extends ConsumerWidget {
                 ),
               const SizedBox(height: 16),
               Text(t('Transactions', 'লেনদেন'), style: text.titleMedium),
-              for (final l in e['entries'] as List)
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  dense: true,
-                  title: Text(l['type'] == 'REFUND' ? t('Refund deduction', 'রিফান্ড কর্তন') : t('Sale (commission ${(l['commissionBps'] as int) / 100}%)', 'বিক্রি (কমিশন ${(l['commissionBps'] as int) / 100}%)')),
-                  subtitle: Text(date.format(DateTime.parse(l['createdAt'] as String).toLocal())),
-                  trailing: Text(taka(l['amountPaisa'] as int)),
-                ),
+              Text(t('Each sale shows the platform fee and VAT taken out. The payment gateway fee is paid by the platform.', 'প্রতিটি বিক্রিতে প্ল্যাটফর্ম ফি ও ভ্যাট কত কাটা হলো দেখানো আছে। পেমেন্ট গেটওয়ের ফি প্ল্যাটফর্ম দেয়।'), style: text.bodySmall),
+              const SizedBox(height: 8),
+              if ((e['entries'] as List).isEmpty) Padding(padding: const EdgeInsets.all(8), child: Text(t('No sales yet', 'এখনো কোনো বিক্রি নেই'))),
+              for (final l in e['entries'] as List) FeeBreakdownTile(l as Map<String, dynamic>),
             ]);
           },
         ),

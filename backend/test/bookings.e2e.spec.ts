@@ -47,7 +47,7 @@ describe('bookings (e2e)', () => {
     const hash = await bcrypt.hash('password123', 10);
     await prisma.user.create({ data: { name: 'Admin', email: 'admin@b.bd', passwordHash: hash, roles: { create: [{ role: 'ADMIN' }] } } });
     const teacher = await prisma.user.create({
-      data: { name: 'Teacher', email: 'teacher@b.bd', passwordHash: hash, roles: { create: [{ role: 'TEACHER' }] }, teacherProfile: { create: { headline: 'T', bio: 'B', skills: [] } } },
+      data: { name: 'Teacher', email: 'teacher@b.bd', passwordHash: hash, roles: { create: [{ role: 'TEACHER' }] }, teacherProfile: { create: { headline: 'T', bio: 'B', skills: [], canSellPaid: true } } },
     });
     teacherId = teacher.id;
     for (const n of ['s1', 's2']) await prisma.user.create({ data: { name: n, email: `${n}@b.bd`, passwordHash: hash, roles: { create: [{ role: 'STUDENT' }] } } });
@@ -82,13 +82,23 @@ describe('bookings (e2e)', () => {
     const after = await http.get(`${api}/teachers/${teacherId}/slots?days=3`).expect(200);
     expect(after.body.map((s: { startAt: string }) => s.startAt)).not.toContain(slot);
 
-    // paying confirms it with a meeting link and credits the teacher at the session rate (20%)
+    // paying turns it into a request; the money waits with the platform until the instructor accepts
     await http.post(`${api}/payments/sslcommerz/ipn`).type('form').send({ val_id: `ok:${b.body.tranId}:50000` }).expect(200, { received: true, ok: true });
-    const mine = await http.get(`${api}/me/bookings`).set(auth('s1')).expect(200);
+    let mine = await http.get(`${api}/me/bookings`).set(auth('s1')).expect(200);
+    expect(mine.body[0]).toMatchObject({ status: 'REQUESTED' });
+    expect(mine.body[0].respondBy).toBeTruthy();
+    expect(await prisma.ledgerEntry.count({ where: { teacherId } })).toBe(0);
+    await http.post(`${api}/teacher/bookings/${bookingId}/accept`).set(auth('s2')).expect(403);
+    await http.post(`${api}/teacher/bookings/${bookingId}/accept`).set(auth('teacher')).expect(201);
+    await http.post(`${api}/teacher/bookings/${bookingId}/accept`).set(auth('teacher')).expect(409);
+    mine = await http.get(`${api}/me/bookings`).set(auth('s1')).expect(200);
     expect(mine.body[0]).toMatchObject({ status: 'CONFIRMED' });
     expect(mine.body[0].meetingUrl).toMatch(/^https:\/\/meet\.jit\.si\/techdropout-/);
     const entry = await prisma.ledgerEntry.findFirstOrThrow({ where: { teacherId } });
-    expect(entry).toMatchObject({ commissionBps: 2000, amountPaisa: 39200 }); // (500 - 10 fee) x 80%
+    // 500 BDT session: 10% platform fee + 5% VAT; held until after the session
+    expect(entry).toMatchObject({ commissionBps: 1000, amountPaisa: 42500, commissionPaisa: 5000, vatPaisa: 2500 });
+    const booking = await prisma.booking.findUniqueOrThrow({ where: { id: bookingId } });
+    expect(entry.availableAt!.getTime()).toBeGreaterThan(booking.endAt.getTime());
     const teacherList = await http.get(`${api}/teacher/bookings`).set(auth('teacher')).expect(200);
     expect(teacherList.body).toHaveLength(1);
   });

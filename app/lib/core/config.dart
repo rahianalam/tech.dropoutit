@@ -9,3 +9,6 @@ const siteUrl = String.fromEnvironment('SITE_URL', defaultValue: 'https://api.te
 /// bought on the website, not in the app, to follow the stores' payment rules for digital
 /// content. Free courses, bought courses and paid 1:1 sessions work as usual.
 const storeBuild = bool.fromEnvironment('STORE_BUILD');
+
+/// Where the web version of the app lives; shared invite and affiliate links open here.
+const webUrl = String.fromEnvironment('WEB_URL', defaultValue: 'https://tech.dropout.it');

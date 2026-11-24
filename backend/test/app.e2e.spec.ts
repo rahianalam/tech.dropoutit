@@ -79,6 +79,7 @@ describe('Tech.Dropout API (e2e)', () => {
     skills: ['Flutter', 'Dart'],
     experience: '5 years at a software company in Dhaka',
     portfolio: [{ type: 'LINK', title: 'GitHub', url: 'https://github.com/example' }],
+    acceptRules: true,
   };
 
   it('teacher applies; admin requests changes; teacher resubmits; admin approves', async () => {
@@ -130,8 +131,12 @@ describe('Tech.Dropout API (e2e)', () => {
     expect(l2.body.position).toBe(1);
     await http.post(`${api}/teacher/courses/${freeCourseId}/submit`).set(auth('teacher')).expect(201);
 
-    const paid = await http.post(`${api}/teacher/courses`).set(auth('teacher'))
-      .send({ title: 'Advanced Flutter state management', description: 'Riverpod, BLoC and clean architecture.', priceBdt: 1500 }).expect(201);
+    // A new instructor starts with free courses; the admin can grant the blue tick early.
+    const paidBody = { title: 'Advanced Flutter state management', description: 'Riverpod, BLoC and clean architecture.', priceBdt: 1500 };
+    await http.post(`${api}/teacher/courses`).set(auth('teacher')).send(paidBody).expect(400);
+    const me = (await http.get(`${api}/auth/me`).set(auth('teacher'))).body;
+    await http.post(`${api}/admin/teachers/${me.id}/verify`).set(auth('admin')).send({ verified: true }).expect(201);
+    const paid = await http.post(`${api}/teacher/courses`).set(auth('teacher')).send(paidBody).expect(201);
     paidCourseId = paid.body.id;
     expect(paid.body.pricePaisa).toBe(150000);
     const s2 = await http.post(`${api}/teacher/courses/${paidCourseId}/sections`).set(auth('teacher')).send({ title: 'Riverpod' }).expect(201);
@@ -208,7 +213,7 @@ describe('Tech.Dropout API (e2e)', () => {
 
   it('admin edits payout settings and sees stats', async () => {
     const s = await http.get(`${api}/admin/settings`).set(auth('admin')).expect(200);
-    expect(s.body).toMatchObject({ courseCommissionBps: 3000, sessionCommissionBps: 2000, holdDays: 7, payoutSchedule: 'MONTHLY' });
+    expect(s.body).toMatchObject({ courseCommissionBps: 700, silverCourseCommissionBps: 600, goldCourseCommissionBps: 500, sessionCommissionBps: 1000, vatBps: 500, holdDays: 7, payoutSchedule: 'MONTHLY' });
     const u = await http.patch(`${api}/admin/settings`).set(auth('admin')).send({ courseCommissionBps: 2500, payoutSchedule: 'WEEKLY' }).expect(200);
     expect(u.body).toMatchObject({ courseCommissionBps: 2500, payoutSchedule: 'WEEKLY' });
     await http.patch(`${api}/admin/settings`).set(auth('admin')).send({ courseCommissionBps: 99999 }).expect(400);

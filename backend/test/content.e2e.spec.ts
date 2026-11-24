@@ -32,7 +32,7 @@ describe('course content, video storage, admin tools, account security (e2e)', (
     await prisma.user.create({ data: { name: 'Admin', email: 'admin@c.bd', passwordHash: hash, roles: { create: [{ role: 'ADMIN' }] } } });
     for (const n of ['teach', 'other', 'stud']) {
       await prisma.user.create({
-        data: { name: n, email: `${n}@c.bd`, passwordHash: hash, roles: { create: [{ role: n === 'stud' ? 'STUDENT' : 'TEACHER' }] } },
+        data: { name: n, email: `${n}@c.bd`, passwordHash: hash, roles: { create: [{ role: n === 'stud' ? 'STUDENT' : 'TEACHER' }] }, ...(n === 'stud' ? {} : { teacherProfile: { create: { headline: 'T', bio: 'B', skills: [], canSellPaid: true } } }) },
       });
     }
     for (const who of ['admin', 'teach', 'other', 'stud']) {

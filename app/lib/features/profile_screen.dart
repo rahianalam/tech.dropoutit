@@ -123,6 +123,7 @@ class ProfileScreen extends ConsumerWidget {
           else if (me.isTeacher) ...[
             MenuItem(icon: Icons.cast_for_education_outlined, title: t('Teacher dashboard', 'টিচার ড্যাশবোর্ড'), onTap: () => context.go('/teacher')),
             MenuItem(icon: Icons.account_balance_wallet_outlined, title: t('My earnings', 'আমার আয়'), onTap: () => context.push('/teacher/earnings')),
+            MenuItem(icon: Icons.badge_outlined, title: t('Instructor profile', 'ইন্সট্রাক্টর প্রোফাইল'), subtitle: t('Bio, experience, expertise, hourly rate', 'বায়ো, অভিজ্ঞতা, দক্ষতা, ঘণ্টাপ্রতি রেট'), onTap: () => context.push('/teacher/profile')),
           ] else
             MenuItem(
               icon: Icons.school_outlined,
@@ -131,6 +132,15 @@ class ProfileScreen extends ConsumerWidget {
               color: Brand.orangeStrong,
               onTap: () => context.push('/teacher/apply'),
             ),
+        ]),
+        MenuGroup(title: t('Earn with us', 'আমাদের সাথে আয় করুন'), items: [
+          MenuItem(icon: Icons.card_giftcard_rounded, title: t('Invite friends', 'বন্ধুদের ইনভাইট করুন'), subtitle: t('Get a free course pass', 'ফ্রি কোর্স পাস পান'), onTap: () => context.push('/referral')),
+          MenuItem(
+            icon: Icons.handshake_outlined,
+            title: me.isAffiliate ? t('Affiliate dashboard', 'অ্যাফিলিয়েট ড্যাশবোর্ড') : t('Affiliate program', 'অ্যাফিলিয়েট প্রোগ্রাম'),
+            subtitle: t('Earn on every course sale you bring', 'আপনার আনা প্রতিটি কোর্স বিক্রিতে আয়'),
+            onTap: () => context.push('/affiliate'),
+          ),
         ]),
         MenuGroup(title: t('Career', 'ক্যারিয়ার'), items: [
           MenuItem(

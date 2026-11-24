@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { ArrayMaxSize, ArrayMinSize, IsEnum, IsIn, IsOptional, IsString, IsUrl, Length, ValidateNested } from 'class-validator';
+import { ArrayMaxSize, ArrayMinSize, Equals, IsEnum, IsIn, IsOptional, IsString, IsUrl, Length, ValidateNested } from 'class-validator';
 import { PortfolioType } from '@prisma/client';
 
 export class PortfolioItemDto {
@@ -35,6 +35,10 @@ export class ApplyDto {
   @IsOptional()
   @IsUrl()
   demoVideoUrl?: string;
+
+  /** The applicant read and accepted the instructor rules (fees, free-first courses, storage). */
+  @Equals(true, { message: 'Please accept the instructor rules' })
+  acceptRules: boolean;
 
   @ValidateNested({ each: true })
   @Type(() => PortfolioItemDto)

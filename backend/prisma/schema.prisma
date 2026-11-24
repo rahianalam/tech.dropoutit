@@ -17,6 +17,7 @@ enum Role {
   STUDENT
   EMPLOYER
   JOB_SEEKER
+  AFFILIATE
 }
 
 enum UserStatus {
@@ -27,16 +28,23 @@ enum UserStatus {
 }
 
 model User {
-  id           String     @id @default(uuid())
-  name         String
-  email        String?    @unique
-  phone        String?    @unique
-  passwordHash String
-  avatarUrl    String?
-  status       UserStatus @default(ACTIVE)
-  roles        UserRole[]
-  createdAt    DateTime   @default(now())
-  updatedAt    DateTime   @updatedAt
+  id              String     @id @default(uuid())
+  name            String
+  email           String?    @unique
+  phone           String?    @unique
+  passwordHash    String
+  avatarUrl       String?
+  status          UserStatus @default(ACTIVE)
+  roles           UserRole[]
+  /// Code friends sign up with; referrals that buy a paid course earn this user free course time
+  referralCode    String?    @unique
+  referredById    String?
+  /// Any paid course is free to start until this time (referral reward)
+  freePassUntil   DateTime?
+  /// How many referral rewards were already given (one per `referralTarget` qualified friends)
+  referralRewards Int        @default(0)
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
 
   teacherApplications  TeacherApplication[] @relation("applicant")
   reviewedApplications TeacherApplication[] @relation("reviewer")
@@ -58,6 +66,9 @@ model User {
   notifications        Notification[]
   refreshTokens        RefreshToken[]
   deviceTokens         DeviceToken[]
+  referredBy           User?                @relation("referrals", fields: [referredById], references: [id], onDelete: SetNull)
+  referrals            User[]               @relation("referrals")
+  affiliateProfile     AffiliateProfile?
 }
 
 model UserRole {
@@ -91,21 +102,23 @@ enum ApplicationStatus {
 }
 
 model TeacherApplication {
-  id           String            @id @default(uuid())
-  userId       String
-  headline     String
-  bio          String
-  skills       String[]
-  experience   String
-  demoVideoUrl String?
-  status       ApplicationStatus @default(PENDING)
-  adminNote    String?
-  reviewedById String?
-  reviewedAt   DateTime?
-  createdAt    DateTime          @default(now())
-  updatedAt    DateTime          @updatedAt
-  user         User              @relation("applicant", fields: [userId], references: [id], onDelete: Cascade)
-  reviewedBy   User?             @relation("reviewer", fields: [reviewedById], references: [id])
+  id              String            @id @default(uuid())
+  userId          String
+  headline        String
+  bio             String
+  skills          String[]
+  experience      String
+  demoVideoUrl    String?
+  status          ApplicationStatus @default(PENDING)
+  /// When the applicant accepted the instructor rules (fees, free-first courses, storage)
+  rulesAcceptedAt DateTime?
+  adminNote       String?
+  reviewedById    String?
+  reviewedAt      DateTime?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  user            User              @relation("applicant", fields: [userId], references: [id], onDelete: Cascade)
+  reviewedBy      User?             @relation("reviewer", fields: [reviewedById], references: [id])
 
   @@index([status])
 }
@@ -129,7 +142,7 @@ model PortfolioItem {
 }
 
 model TeacherProfile {
-  userId               String   @id
+  userId               String      @id
   headline             String
   bio                  String
   skills               String[]
@@ -137,9 +150,20 @@ model TeacherProfile {
   sessionCommissionBps Int?
   payoutMethod         String?
   payoutAccount        String?
-  createdAt            DateTime @default(now())
-  updatedAt            DateTime @updatedAt
-  user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  experience           String?
+  expertise            String[]    @default([])
+  /// 1:1 price per hour; a slot costs rate x minutes / 60 (0 = free intro slots only)
+  hourlyRatePaisa      Int?
+  /// Blue tick: reached the free-course, views and watch-time targets (or granted by the admin)
+  verifiedAt           DateTime?
+  /// New instructors start with free courses only; true once verified (existing instructors keep paid courses)
+  canSellPaid          Boolean     @default(false)
+  storagePlan          StoragePlan @default(FREE)
+  storagePlanUntil     DateTime?
+  rulesAcceptedAt      DateTime?
+  createdAt            DateTime    @default(now())
+  updatedAt            DateTime    @updatedAt
+  user                 User        @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 // ---------- Learning ----------
@@ -174,38 +198,40 @@ enum CourseLevel {
 }
 
 model Course {
-  id           String       @id @default(uuid())
-  teacherId    String
-  categoryId   String?
-  title        String
-  subtitle     String?
-  description  String
-  thumbnailUrl String?
-  pricePaisa   Int          @default(0)
+  id                 String       @id @default(uuid())
+  teacherId          String
+  /// Lesson plays by learners (not the instructor); counts toward the blue tick
+  views              Int          @default(0)
+  categoryId         String?
+  title              String
+  subtitle           String?
+  description        String
+  thumbnailUrl       String?
+  pricePaisa         Int          @default(0)
   /// Optional "was" price shown struck through next to the real price.
   originalPricePaisa Int?
-  isFree       Boolean      @default(true)
+  isFree             Boolean      @default(true)
   /// "What you'll learn" bullet points.
-  outcomes     String[]     @default([])
+  outcomes           String[]     @default([])
   /// "Requirements" bullet points.
-  requirements String[]     @default([])
+  requirements       String[]     @default([])
   /// "Who this course is for" bullet points.
-  audience     String[]     @default([])
-  level        CourseLevel  @default(ALL)
-  language     String       @default("bn")
-  status       CourseStatus @default(DRAFT)
-  adminNote    String?
-  isFeatured   Boolean      @default(false)
-  ratingAvg    Float        @default(0)
-  ratingCount  Int          @default(0)
-  publishedAt  DateTime?
-  createdAt    DateTime     @default(now())
-  updatedAt    DateTime     @updatedAt
-  teacher      User         @relation(fields: [teacherId], references: [id])
-  category     Category?    @relation(fields: [categoryId], references: [id])
-  sections     Section[]
-  enrollments  Enrollment[]
-  reviews      Review[]
+  audience           String[]     @default([])
+  level              CourseLevel  @default(ALL)
+  language           String       @default("bn")
+  status             CourseStatus @default(DRAFT)
+  adminNote          String?
+  isFeatured         Boolean      @default(false)
+  ratingAvg          Float        @default(0)
+  ratingCount        Int          @default(0)
+  publishedAt        DateTime?
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+  teacher            User         @relation(fields: [teacherId], references: [id])
+  category           Category?    @relation(fields: [categoryId], references: [id])
+  sections           Section[]
+  enrollments        Enrollment[]
+  reviews            Review[]
 
   @@index([status])
   @@index([teacherId])
@@ -254,6 +280,8 @@ model Enrollment {
   status      EnrollmentStatus @default(ACTIVE)
   progressPct Int              @default(0)
   completedAt DateTime?
+  /// Set for enrollments made with a referral free pass: access ends then
+  expiresAt   DateTime?
   createdAt   DateTime         @default(now())
   user        User             @relation(fields: [userId], references: [id])
   course      Course           @relation(fields: [courseId], references: [id])
@@ -296,6 +324,8 @@ enum OrderItemType {
   COURSE
   BOOKING
   JOB_POST
+  STORAGE_PLAN
+  AFFILIATE_MEMBERSHIP
 }
 
 enum OrderStatus {
@@ -319,6 +349,8 @@ model Order {
   refundedAt    DateTime?
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
+  /// Affiliate whose link brought this sale
+  affiliateId   String?
   user          User          @relation(fields: [userId], references: [id])
   payments      Payment[]
   enrollment    Enrollment?
@@ -355,19 +387,23 @@ enum LedgerStatus {
 }
 
 model LedgerEntry {
-  id            String       @id @default(uuid())
-  teacherId     String
-  orderId       String?
-  payoutId      String?
-  type          LedgerType
-  amountPaisa   Int
-  commissionBps Int          @default(0)
-  status        LedgerStatus @default(PENDING)
-  availableAt   DateTime?
-  createdAt     DateTime     @default(now())
-  teacher       User         @relation(fields: [teacherId], references: [id])
-  order         Order?       @relation(fields: [orderId], references: [id])
-  payout        Payout?      @relation(fields: [payoutId], references: [id])
+  id              String       @id @default(uuid())
+  teacherId       String
+  orderId         String?
+  payoutId        String?
+  type            LedgerType
+  amountPaisa     Int
+  commissionBps   Int          @default(0)
+  /// Fee breakdown shown to the instructor: gross - commission - VAT = amountPaisa
+  grossPaisa      Int          @default(0)
+  commissionPaisa Int          @default(0)
+  vatPaisa        Int          @default(0)
+  status          LedgerStatus @default(PENDING)
+  availableAt     DateTime?
+  createdAt       DateTime     @default(now())
+  teacher         User         @relation(fields: [teacherId], references: [id])
+  order           Order?       @relation(fields: [orderId], references: [id])
+  payout          Payout?      @relation(fields: [payoutId], references: [id])
 
   @@index([teacherId, status])
 }
@@ -399,15 +435,47 @@ enum PayoutSchedule {
 }
 
 // Singleton row (id = 1). Every value is editable from the admin panel.
+enum StoragePlan {
+  FREE
+  STARTER
+  PRO
+  UNLIMITED
+}
+
 model PlatformSettings {
-  id                   Int            @id @default(1)
-  courseCommissionBps  Int            @default(3000)
-  sessionCommissionBps Int            @default(2000)
-  holdDays             Int            @default(7)
-  payoutSchedule       PayoutSchedule @default(MONTHLY)
-  payoutDayOfMonth     Int            @default(1)
-  minPayoutPaisa       Int            @default(100000)
-  updatedAt            DateTime       @updatedAt
+  id                        Int            @id @default(1)
+  /// Platform fee on a recorded course sale for a regular instructor (700 = 7%)
+  courseCommissionBps       Int            @default(700)
+  silverCourseCommissionBps Int            @default(600)
+  goldCourseCommissionBps   Int            @default(500)
+  /// Platform fee on a 1:1 booking (1000 = 10%)
+  sessionCommissionBps      Int            @default(1000)
+  /// VAT taken from every sale and booking (500 = 5%)
+  vatBps                    Int            @default(500)
+  silverSales               Int            @default(25)
+  goldSales                 Int            @default(50)
+  /// Hours an instructor has to accept a booking request before it is declined and refunded
+  bookingResponseHours      Int            @default(24)
+  freeCoursesRequired       Int            @default(10)
+  viewsRequired             Int            @default(4000)
+  watchMinutesRequired      Int            @default(10000)
+  freeVideoLimit            Int            @default(10)
+  starterVideoLimit         Int            @default(50)
+  proVideoLimit             Int            @default(200)
+  starterPricePaisa         Int            @default(19900)
+  proPricePaisa             Int            @default(49900)
+  unlimitedPricePaisa       Int            @default(99900)
+  referralTarget            Int            @default(15)
+  referralPassDays          Int            @default(15)
+  affiliateCommissionBps    Int            @default(200)
+  /// $5 membership in taka
+  affiliateFeePaisa         Int            @default(60000)
+  affiliateInactiveDays     Int            @default(180)
+  holdDays                  Int            @default(7)
+  payoutSchedule            PayoutSchedule @default(MONTHLY)
+  payoutDayOfMonth          Int            @default(1)
+  minPayoutPaisa            Int            @default(100000)
+  updatedAt                 DateTime       @updatedAt
 }
 
 // ---------- Bookings (phase 3) ----------
@@ -426,6 +494,7 @@ model AvailabilityRule {
 
 enum BookingStatus {
   HELD
+  REQUESTED
   CONFIRMED
   COMPLETED
   CANCELLED
@@ -443,6 +512,9 @@ model Booking {
   heldUntil   DateTime?
   meetingUrl  String?
   pricePaisa  Int           @default(0)
+  /// Instructor must accept or decline before this time, otherwise it is declined and refunded
+  respondBy   DateTime?
+  declineNote String?
   reminded24  Boolean       @default(false)
   reminded15  Boolean       @default(false)
   cancelledBy String?
@@ -498,6 +570,8 @@ enum UploadKind {
   IMAGE
   /// Recorded lesson videos: served from signed, expiring links with HTTP Range support.
   VIDEO
+  /// Identity documents (NID, photo, selfie) for affiliate verification: admin-only
+  KYC
 }
 
 /// A file kept on the server's disk (UPLOAD_DIR). Served only through signed, expiring links.
@@ -622,4 +696,62 @@ model AuditLog {
   target    String
   meta      Json?
   createdAt DateTime @default(now())
+}
+
+// ---------- Affiliates ----------
+
+enum AffiliateStatus {
+  /// Signed up; the membership fee is not paid yet
+  UNPAID
+  /// Paid; documents waiting for the admin
+  IN_REVIEW
+  ACTIVE
+  REJECTED
+  /// No sale or click for `affiliateInactiveDays`
+  DEACTIVATED
+}
+
+model AffiliateProfile {
+  userId           String             @id
+  code             String             @unique
+  status           AffiliateStatus    @default(UNPAID)
+  nidNumber        String?
+  nidFrontId       String?
+  nidBackId        String?
+  photoId          String?
+  selfieId         String?
+  adminNote        String?
+  membershipPaidAt DateTime?
+  lastActiveAt     DateTime           @default(now())
+  payoutMethod     String?
+  payoutAccount    String?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+  user             User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  clicks           AffiliateClick[]
+  earnings         AffiliateEarning[]
+}
+
+model AffiliateClick {
+  id          String           @id @default(uuid())
+  affiliateId String
+  courseId    String?
+  createdAt   DateTime         @default(now())
+  affiliate   AffiliateProfile @relation(fields: [affiliateId], references: [userId], onDelete: Cascade)
+
+  @@index([affiliateId, createdAt])
+}
+
+model AffiliateEarning {
+  id          String           @id @default(uuid())
+  affiliateId String
+  orderId     String           @unique
+  courseId    String
+  amountPaisa Int
+  status      LedgerStatus     @default(PENDING)
+  availableAt DateTime
+  createdAt   DateTime         @default(now())
+  affiliate   AffiliateProfile @relation(fields: [affiliateId], references: [userId], onDelete: Cascade)
+
+  @@index([affiliateId, status])
 }

@@ -182,7 +182,13 @@ async function main() {
       data: {
         name: t.name, email: `${t.key}${DOMAIN}`, passwordHash,
         roles: { create: [{ role: 'TEACHER' }, { role: 'STUDENT' }] },
-        teacherProfile: { create: { headline: t.headline, bio: t.bio, skills: t.skills } },
+        teacherProfile: {
+          create: {
+            headline: t.headline, bio: t.bio, skills: t.skills, expertise: t.skills,
+            experience: `${t.headline}. Teaching on Tech.Dropout.`,
+            hourlyRatePaisa: 50000, canSellPaid: true, verifiedAt: new Date(),
+          },
+        },
         // Bookable 1:1 time: Sun-Thu 7-10 PM (paid, 1 hour) and a free 30-minute intro on Saturday morning.
         availabilityRules: {
           create: [

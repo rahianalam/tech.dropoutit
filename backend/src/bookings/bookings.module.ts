@@ -11,7 +11,7 @@ class RuleDto {
   @IsInt() @Min(0) @Max(1440) startMinute: number;
   @IsInt() @Min(0) @Max(1440) endMinute: number;
   @IsIn([30, 45, 60, 90, 120]) slotMinutes: number;
-  /** BDT per slot; 0 = free intro session */
+  /** BDT per slot; 0 = free intro session. Paid slots are priced from the hourly rate when one is set. */
   @IsInt() @Min(0) @Max(100000) priceBdt: number;
 }
 class RulesDto {
@@ -23,6 +23,9 @@ class BookDto {
 }
 class OutcomeDto {
   @IsIn(['COMPLETED', 'NO_SHOW']) outcome: 'COMPLETED' | 'NO_SHOW';
+}
+class DeclineDto {
+  @IsOptional() @IsString() @Length(0, 500) note?: string;
 }
 class ReportDto {
   @IsString() @Length(5, 1000) reason: string;
@@ -45,6 +48,12 @@ export class BookingsController {
   setRules(@CurrentUser() u: AuthUser, @Body() dto: RulesDto) {
     return this.bookings.setRules(u.id, dto.rules.map(({ priceBdt, ...r }) => ({ ...r, pricePaisa: priceBdt * 100 })));
   }
+
+  @Roles('TEACHER') @Post('teacher/bookings/:id/accept')
+  accept(@Id() id: string, @CurrentUser() u: AuthUser) { return this.bookings.accept(id, u); }
+
+  @Roles('TEACHER') @Post('teacher/bookings/:id/decline')
+  decline(@Id() id: string, @CurrentUser() u: AuthUser, @Body() dto: DeclineDto) { return this.bookings.decline(id, u, dto.note); }
 
   @Roles('TEACHER') @Get('teacher/bookings')
   teacherBookings(@CurrentUser() u: AuthUser) { return this.bookings.forTeacher(u.id); }
@@ -80,6 +89,7 @@ export class BookingJobs {
   async tick() {
     if (!this.enabled) return;
     await this.bookings.releaseExpiredHolds();
+    await this.bookings.expireRequests();
     await this.bookings.sendReminders();
   }
 

@@ -22,12 +22,12 @@ export class AccountDeletionService {
     const owed = await this.prisma.ledgerEntry.aggregate({ where: { teacherId: userId, status: { in: ['PENDING', 'AVAILABLE'] } }, _sum: { amountPaisa: true } });
     if ((owed._sum.amountPaisa ?? 0) > 0) throw new ConflictException('You still have unpaid earnings. Please wait for your payout, then delete the account.');
     const upcoming = await this.prisma.booking.count({
-      where: { status: { in: ['HELD', 'CONFIRMED'] }, endAt: { gt: new Date() }, OR: [{ teacherId: userId }, { studentId: userId }] },
+      where: { status: { in: ['HELD', 'REQUESTED', 'CONFIRMED'] }, endAt: { gt: new Date() }, OR: [{ teacherId: userId }, { studentId: userId }] },
     });
     if (upcoming > 0) throw new ConflictException('You have upcoming sessions. Cancel or finish them first.');
 
     // Personal files go; course videos and thumbnails stay, because enrolled students keep access.
-    const personal = { ownerId: userId, kind: { in: ['CV', 'LOGO'] as UploadKind[] } };
+    const personal = { ownerId: userId, kind: { in: ['CV', 'LOGO', 'KYC'] as UploadKind[] } };
     const files = await this.prisma.upload.findMany({ where: personal, select: { id: true, storageKey: true } });
     await this.prisma.$transaction([
       this.prisma.user.update({
@@ -47,6 +47,7 @@ export class AccountDeletionService {
       this.prisma.portfolioItem.deleteMany({ where: { ownerId: userId } }),
       this.prisma.teacherApplication.deleteMany({ where: { userId } }),
       this.prisma.seekerProfile.deleteMany({ where: { userId } }),
+      this.prisma.affiliateProfile.deleteMany({ where: { userId } }),
       this.prisma.availabilityRule.deleteMany({ where: { teacherId: userId } }),
       this.prisma.teacherProfile.updateMany({ where: { userId }, data: { payoutMethod: null, payoutAccount: null } }),
       // Hide their courses and jobs from everyone new; enrolled students keep access.

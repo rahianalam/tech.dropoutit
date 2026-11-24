@@ -4,10 +4,33 @@ import { IsEnum, IsInt, IsOptional, Max, Min } from 'class-validator';
 import { AuthUser, CurrentUser, Roles } from '../common/auth.decorators';
 import { PrismaService } from '../prisma/prisma.service';
 
-/** Every money rule is editable by the admin; defaults are the plan's guesses (30% / 20% / 7 days / monthly / 1,000 BDT). */
+const bps = () => (t: object, k: string) => { IsOptional()(t, k); IsInt()(t, k); Min(0)(t, k); Max(9000)(t, k); };
+const count = () => (t: object, k: string) => { IsOptional()(t, k); IsInt()(t, k); Min(0)(t, k); Max(10_000_000)(t, k); };
+
+/** Every money rule is editable by the admin (defaults: 7% / 6% / 5% on courses by tier, 10% on bookings, 5% VAT). */
 class UpdateSettingsDto {
-  @IsOptional() @IsInt() @Min(0) @Max(9000) courseCommissionBps?: number;
-  @IsOptional() @IsInt() @Min(0) @Max(9000) sessionCommissionBps?: number;
+  @bps() courseCommissionBps?: number;
+  @bps() silverCourseCommissionBps?: number;
+  @bps() goldCourseCommissionBps?: number;
+  @bps() sessionCommissionBps?: number;
+  @bps() vatBps?: number;
+  @bps() affiliateCommissionBps?: number;
+  @count() silverSales?: number;
+  @count() goldSales?: number;
+  @count() bookingResponseHours?: number;
+  @count() freeCoursesRequired?: number;
+  @count() viewsRequired?: number;
+  @count() watchMinutesRequired?: number;
+  @count() freeVideoLimit?: number;
+  @count() starterVideoLimit?: number;
+  @count() proVideoLimit?: number;
+  @count() starterPricePaisa?: number;
+  @count() proPricePaisa?: number;
+  @count() unlimitedPricePaisa?: number;
+  @count() referralTarget?: number;
+  @count() referralPassDays?: number;
+  @count() affiliateFeePaisa?: number;
+  @count() affiliateInactiveDays?: number;
   @IsOptional() @IsInt() @Min(0) @Max(90) holdDays?: number;
   @IsOptional() @IsEnum(PayoutSchedule) payoutSchedule?: PayoutSchedule;
   @IsOptional() @IsInt() @Min(1) @Max(28) payoutDayOfMonth?: number;

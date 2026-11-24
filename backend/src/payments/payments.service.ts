@@ -1,12 +1,18 @@
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { Order, Prisma } from '@prisma/client';
+import { Order, Prisma, StoragePlan } from '@prisma/client';
 import { randomBytes } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { meetingUrl } from '../bookings/slots';
 import { PaymentGateway } from './gateway';
+import { courseCommissionFor, feeBreakdown, paidCourseSales, settingsOf, tierFor } from '../fees/fees';
 
 type Tx = Prisma.TransactionClient;
 export const ORDER_TTL_MINUTES = 30;
+
+/** Instructor must answer within `hours`, and at the latest one hour before the session. */
+export function respondBy(startAt: Date, hours: number, now = Date.now()): Date {
+  return new Date(Math.max(now + 60_000, Math.min(now + hours * 3600_000, startAt.getTime() - 3600_000)));
+}
 
 const newTranId = () => `TD${Date.now().toString(36).toUpperCase()}${randomBytes(3).toString('hex').toUpperCase()}`;
 
@@ -27,7 +33,7 @@ export class PaymentsService {
    * Starts checkout for a paid course. Reuses a still-fresh pending order so a
    * double tap does not create two orders.
    */
-  async checkoutCourse(userId: string, courseId: string) {
+  async checkoutCourse(userId: string, courseId: string, ref?: string) {
     const course = await this.prisma.course.findUnique({ where: { id: courseId } });
     if (!course || course.status !== 'PUBLISHED') throw new NotFoundException('Course not found');
     if (course.isFree) throw new BadRequestException('This course is free; enroll directly');
@@ -48,6 +54,7 @@ export class PaymentsService {
           itemId: courseId,
           amountPaisa: course.pricePaisa,
           tranId: newTranId(),
+          affiliateId: await this.activeAffiliate(ref, userId),
         },
       }));
 
@@ -59,6 +66,27 @@ export class PaymentsService {
       customer: { name: user.name, email: user.email, phone: user.phone },
     });
     return { orderId: order.id, tranId: order.tranId, amountPaisa: order.amountPaisa, gatewayUrl };
+  }
+
+  /** The affiliate behind a ref code, if the code is live and not the buyer's own. */
+  private async activeAffiliate(ref: string | undefined, buyerId: string) {
+    if (!ref) return null;
+    const a = await this.prisma.affiliateProfile.findUnique({ where: { code: ref.trim().toUpperCase() } });
+    return a && a.status === 'ACTIVE' && a.userId !== buyerId ? a.userId : null;
+  }
+
+  /** Checkout for anything else bought from the platform itself (storage plans, memberships). */
+  async checkoutItem(userId: string, itemType: 'STORAGE_PLAN' | 'AFFILIATE_MEMBERSHIP', itemId: string, amountPaisa: number, productName: string) {
+    const user = await this.prisma.user.findUniqueOrThrow({ where: { id: userId } });
+    const order = await this.prisma.order.create({ data: { userId, itemType, itemId, amountPaisa, tranId: newTranId() } });
+    const gatewayUrl = await this.gateway.createCheckout({
+      tranId: order.tranId,
+      amountPaisa,
+      productName,
+      productCategory: 'Subscription',
+      customer: { name: user.name, email: user.email, phone: user.phone },
+    });
+    return { orderId: order.id, tranId: order.tranId, amountPaisa, gatewayUrl };
   }
 
   /** Starts checkout for a held session booking (created by BookingsService.book). */
@@ -132,10 +160,29 @@ export class PaymentsService {
         });
         await this.recordEarning(tx, order, course.teacherId, payment.feePaisa, 'course');
         await tx.notification.create({ data: { userId: order.userId, title: 'পেমেন্ট সফল', body: `"${course.title}" কোর্সে আপনি এনরোলড।` } });
+        await this.creditAffiliate(tx, order, course.id);
+        await this.rewardReferrer(tx, order.userId);
       }
 
       if (order.itemType === 'BOOKING') {
         await this.confirmBooking(tx, order, payment.feePaisa);
+      }
+
+      if (order.itemType === 'AFFILIATE_MEMBERSHIP') {
+        const a = await tx.affiliateProfile.update({ where: { userId: order.userId }, data: { membershipPaidAt: new Date(), lastActiveAt: new Date() } });
+        // Documents already sent → straight to the admin's review queue.
+        if (a.status === 'UNPAID' && a.selfieId && a.nidFrontId) await tx.affiliateProfile.update({ where: { userId: order.userId }, data: { status: 'IN_REVIEW' } });
+      }
+
+      if (order.itemType === 'STORAGE_PLAN') {
+        // itemId is "<PLAN>:<months>"; a renewal adds to the time left.
+        const [plan, months] = order.itemId.split(':');
+        const profile = await tx.teacherProfile.findUniqueOrThrow({ where: { userId: order.userId } });
+        const from = profile.storagePlan === plan && profile.storagePlanUntil && profile.storagePlanUntil > new Date() ? profile.storagePlanUntil : new Date();
+        const until = new Date(from);
+        until.setMonth(until.getMonth() + Number(months));
+        await tx.teacherProfile.update({ where: { userId: order.userId }, data: { storagePlan: plan as StoragePlan, storagePlanUntil: until } });
+        await tx.notification.create({ data: { userId: order.userId, title: 'স্টোরেজ প্ল্যান চালু', body: `${plan} প্ল্যান ${until.toISOString().slice(0, 10)} পর্যন্ত।` } });
       }
       return order;
     });
@@ -155,37 +202,82 @@ export class PaymentsService {
       await tx.notification.createMany({ data: admins.map((a) => ({ userId: a.userId, title: 'রিফান্ড দরকার', body: `অর্ডার ${order.tranId}: স্লট হারানো বুকিং` })) });
       return;
     }
-    await tx.booking.update({ where: { id: b.id }, data: { status: 'CONFIRMED', slotLock: 'live', meetingUrl: b.meetingUrl ?? meetingUrl(), cancelledBy: null } });
-    await this.recordEarning(tx, order, b.teacherId, feePaisa, 'session');
+    // Paid and held by the platform; the instructor now accepts or declines.
+    const settings = await settingsOf(tx);
+    await tx.booking.update({
+      where: { id: b.id },
+      data: { status: 'REQUESTED', slotLock: 'live', cancelledBy: null, respondBy: respondBy(b.startAt, settings.bookingResponseHours) },
+    });
     const when = b.startAt.toLocaleString('en-GB', { timeZone: 'Asia/Dhaka', dateStyle: 'medium', timeStyle: 'short' });
     await tx.notification.createMany({
       data: [
-        { userId: b.studentId, title: 'সেশন নিশ্চিত', body: `${b.teacher.name}-এর সাথে ${when}` },
-        { userId: b.teacherId, title: 'নতুন সেশন বুকিং', body: `${b.student.name} · ${when}` },
+        { userId: b.studentId, title: 'বুকিং রিকোয়েস্ট পাঠানো হয়েছে', body: `${b.teacher.name} গ্রহণ করলে সেশন নিশ্চিত হবে (${when})। না করলে পুরো টাকা ফেরত।` },
+        { userId: b.teacherId, title: 'নতুন বুকিং রিকোয়েস্ট', body: `${b.student.name} · ${when}। গ্রহণ বা বাতিল করুন।` },
       ],
     });
   }
 
-  /** Credits the teacher's ledger. The admin's own (official) courses earn nothing to pay out. */
-  async recordEarning(tx: Tx, order: Order, teacherId: string, feePaisa: number, kind: 'course' | 'session') {
+  /**
+   * Credits the instructor's ledger (escrow): commission and VAT are taken off and
+   * the rest becomes withdrawable after the hold period. A 1:1 session's money is
+   * held until the session has ended. The admin's own courses earn nothing to pay out.
+   */
+  async recordEarning(tx: Tx, order: Order, teacherId: string, _feePaisa: number, kind: 'course' | 'session', sessionEnd?: Date) {
     const isAdmin = await tx.userRole.findUnique({ where: { userId_role: { userId: teacherId, role: 'ADMIN' } } });
     if (isAdmin) return;
-    const settings = await tx.platformSettings.upsert({ where: { id: 1 }, create: { id: 1 }, update: {} });
+    const settings = await settingsOf(tx);
     const profile = await tx.teacherProfile.findUnique({ where: { userId: teacherId } });
     const commissionBps =
       kind === 'course'
-        ? (profile?.courseCommissionBps ?? settings.courseCommissionBps)
+        ? (profile?.courseCommissionBps ?? courseCommissionFor(tierFor(await paidCourseSales(tx, teacherId), settings), settings))
         : (profile?.sessionCommissionBps ?? settings.sessionCommissionBps);
+    const fees = feeBreakdown(order.amountPaisa, commissionBps, settings.vatBps);
+    const from = sessionEnd && sessionEnd.getTime() > Date.now() ? sessionEnd.getTime() : Date.now();
     await tx.ledgerEntry.create({
       data: {
         teacherId,
         orderId: order.id,
         type: 'EARNING',
-        amountPaisa: teacherShare(order.amountPaisa, feePaisa, commissionBps),
+        amountPaisa: fees.netPaisa,
+        grossPaisa: fees.grossPaisa,
+        commissionPaisa: fees.commissionPaisa,
+        vatPaisa: fees.vatPaisa,
         commissionBps,
         status: 'PENDING',
-        availableAt: new Date(Date.now() + settings.holdDays * 864e5),
+        availableAt: new Date(from + settings.holdDays * 864e5),
       },
+    });
+  }
+
+  /** 2% (admin setting) of the price goes to the affiliate whose link sold the course. */
+  private async creditAffiliate(tx: Tx, order: Order, courseId: string) {
+    if (!order.affiliateId) return;
+    const s = await settingsOf(tx);
+    const amountPaisa = Math.round((order.amountPaisa * s.affiliateCommissionBps) / 10000);
+    if (amountPaisa <= 0) return;
+    await tx.affiliateEarning.create({
+      data: { affiliateId: order.affiliateId, orderId: order.id, courseId, amountPaisa, availableAt: new Date(Date.now() + s.holdDays * 864e5) },
+    });
+    await tx.affiliateProfile.update({ where: { userId: order.affiliateId }, data: { lastActiveAt: new Date() } });
+    await tx.notification.create({ data: { userId: order.affiliateId, title: 'নতুন অ্যাফিলিয়েট বিক্রি', body: `আপনার লিংক থেকে একটি কোর্স বিক্রি হয়েছে। আয় ৳${amountPaisa / 100}` } });
+  }
+
+  /**
+   * Referral reward: every `referralTarget` friends who bought a paid course give the
+   * referrer `referralPassDays` days in which any paid course is free to start.
+   */
+  private async rewardReferrer(tx: Tx, buyerId: string) {
+    const buyer = await tx.user.findUnique({ where: { id: buyerId }, select: { referredById: true } });
+    if (!buyer?.referredById) return;
+    const s = await settingsOf(tx);
+    const qualified = await tx.user.count({ where: { referredById: buyer.referredById, orders: { some: { itemType: 'COURSE', status: 'PAID' } } } });
+    const referrer = await tx.user.findUniqueOrThrow({ where: { id: buyer.referredById } });
+    if (Math.floor(qualified / s.referralTarget) <= referrer.referralRewards) return;
+    const from = referrer.freePassUntil && referrer.freePassUntil > new Date() ? referrer.freePassUntil : new Date();
+    const until = new Date(from.getTime() + s.referralPassDays * 864e5);
+    await tx.user.update({ where: { id: referrer.id }, data: { freePassUntil: until, referralRewards: { increment: 1 } } });
+    await tx.notification.create({
+      data: { userId: referrer.id, title: 'রেফারাল পুরস্কার!', body: `${s.referralTarget} জন বন্ধু কোর্স কিনেছে। ${s.referralPassDays} দিন যেকোনো পেইড কোর্স ফ্রি করুন।` },
     });
   }
 

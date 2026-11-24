@@ -23,6 +23,12 @@ class Brand {
     end: Alignment.bottomRight,
     colors: [tealDark, Color(0xFF4A3B30), Color(0xFFB8572B)],
   );
+  /// Affiliate screens: teal into a deep blue-green, so partners see a third look.
+  static const affiliateGradient = LinearGradient(
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+    colors: [tealDeep, Color(0xFF1E4A5C), Color(0xFF2B7A78)],
+  );
   static const heroGradient = LinearGradient(
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,

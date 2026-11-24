@@ -18,7 +18,10 @@ import '../features/learning/my_learning_screen.dart';
 import '../features/profile_screen.dart';
 import '../features/teacher/earnings_screen.dart';
 import '../features/teacher/teacher_screens.dart';
+import '../features/teacher/instructor_screens.dart';
+import '../features/growth/growth_screens.dart';
 import 'auth.dart';
+import 'checkout.dart';
 import 'i18n.dart';
 
 /// Bottom tabs (max 5) depend on the user's roles:
@@ -39,7 +42,7 @@ List<({String path, IconData icon, IconData selected, String label})> tabsFor(Me
   ];
 }
 
-const _needsLogin = ['/learning', '/teacher', '/admin', '/notifications', '/employer', '/jobs/profile', '/jobs/applications', '/account'];
+const _needsLogin = ['/affiliate', '/referral', '/learning', '/teacher', '/admin', '/notifications', '/employer', '/jobs/profile', '/jobs/applications', '/account'];
 
 /// Prefix match on whole path segments, so '/teacher' does not swallow the
 /// public '/teachers/:id' pages.
@@ -57,7 +60,17 @@ final routerProvider = Provider<GoRouter>((ref) {
 
   final rootKey = GlobalKey<NavigatorState>();
   late final GoRouter router;
-  void track() => _lastLocation = router.routerDelegate.currentConfiguration.uri.toString();
+  void track() {
+    final uri = router.routerDelegate.currentConfiguration.uri;
+    _lastLocation = uri.toString();
+    // An affiliate link (?ref=CODE) on any page except sign up, where ref is a friend's invite code.
+    final code = uri.queryParameters['ref'];
+    if (code != null && code != affiliateRef && uri.path != '/register' && uri.path != '/login') {
+      affiliateRef = code;
+      final course = RegExp(r'^/courses/([0-9a-f-]{36})$').firstMatch(uri.path)?.group(1);
+      ref.read(apiProvider).post('/affiliates/click', {'code': code, 'courseId': ?course}).ignore();
+    }
+  }
   router = GoRouter(
     navigatorKey: rootKey,
     initialLocation: _lastLocation,
@@ -75,6 +88,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         final from = state.uri.queryParameters['from'];
         if (from != null && from.startsWith('/')) return from;
         if (state.uri.queryParameters['as'] == 'teacher') return '/teacher';
+        if (state.uri.queryParameters['as'] == 'affiliate') return '/affiliate';
         if (me.isAdmin) return '/admin';
         return '/';
       }
@@ -96,8 +110,8 @@ final routerProvider = Provider<GoRouter>((ref) {
             builder: (_, _) => const HomeScreen(),
             routes: [
               // Login sits on top of Home too, so back from it never closes the app.
-              GoRoute(parentNavigatorKey: rootKey, path: 'login', builder: (_, s) => LoginScreen(as: s.uri.queryParameters['as'])),
-              GoRoute(parentNavigatorKey: rootKey, path: 'register', builder: (_, s) => LoginScreen(register: true, as: s.uri.queryParameters['as'])),
+              GoRoute(parentNavigatorKey: rootKey, path: 'login', builder: (_, s) => LoginScreen(as: s.uri.queryParameters['as'], ref: s.uri.queryParameters['ref'])),
+              GoRoute(parentNavigatorKey: rootKey, path: 'register', builder: (_, s) => LoginScreen(register: true, as: s.uri.queryParameters['as'], ref: s.uri.queryParameters['ref'])),
               GoRoute(parentNavigatorKey: rootKey, path: 'courses/:id', builder: (_, s) => CourseDetailScreen(s.pathParameters['id']!)),
               GoRoute(parentNavigatorKey: rootKey, path: 'lessons/:id', builder: (_, s) => LessonScreen(s.pathParameters['id']!)),
               GoRoute(parentNavigatorKey: rootKey, path: 'teachers/:id', builder: (_, s) => TeacherProfileScreen(s.pathParameters['id']!)),
@@ -131,6 +145,13 @@ final routerProvider = Provider<GoRouter>((ref) {
               GoRoute(parentNavigatorKey: rootKey, path: 'admin/applications', builder: (_, _) => const ApplicationsScreen()),
               GoRoute(parentNavigatorKey: rootKey, path: 'admin/applications/:id', builder: (_, s) => ApplicationReviewScreen(s.pathParameters['id']!)),
               GoRoute(parentNavigatorKey: rootKey, path: 'admin/course-reviews', builder: (_, _) => const CourseReviewScreen()),
+              GoRoute(parentNavigatorKey: rootKey, path: 'referral', builder: (_, _) => const ReferralScreen()),
+              GoRoute(parentNavigatorKey: rootKey, path: 'affiliate', builder: (_, _) => const AffiliateDashboard()),
+              GoRoute(parentNavigatorKey: rootKey, path: 'affiliate/verify', builder: (_, _) => const AffiliateVerifyScreen()),
+              GoRoute(parentNavigatorKey: rootKey, path: 'admin/affiliates', builder: (_, _) => const AdminAffiliatesScreen()),
+              GoRoute(parentNavigatorKey: rootKey, path: 'admin/affiliates/:id', builder: (_, s) => AdminAffiliateScreen(s.pathParameters['id']!)),
+              GoRoute(parentNavigatorKey: rootKey, path: 'teacher/storage', builder: (_, _) => const StoragePlansScreen()),
+              GoRoute(parentNavigatorKey: rootKey, path: 'teacher/profile', builder: (_, _) => const TeacherProfileEditScreen()),
               GoRoute(parentNavigatorKey: rootKey, path: 'teacher/earnings', builder: (_, _) => const EarningsScreen()),
               GoRoute(parentNavigatorKey: rootKey, path: 'admin/payouts', builder: (_, _) => const PayoutsScreen()),
               GoRoute(parentNavigatorKey: rootKey, path: 'admin/orders', builder: (_, _) => const OrdersScreen()),

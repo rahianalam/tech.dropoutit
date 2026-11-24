@@ -7,12 +7,14 @@ import 'package:material_ui/material_ui.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:video_player/video_player.dart';
 import '../../core/auth.dart';
+import '../../core/checkout.dart';
 import '../../core/config.dart';
 import '../../core/format.dart';
 import '../../core/i18n.dart';
 import '../../core/theme.dart';
 import '../../core/widgets.dart';
 import '../learning/my_learning_screen.dart';
+import '../teacher/instructor_screens.dart';
 
 final courseProvider = FutureProvider.autoDispose.family<Map<String, dynamic>, String>((ref, id) => ref.read(apiProvider).get('/courses/$id'));
 
@@ -106,14 +108,15 @@ class _CourseDetailScreenState extends ConsumerState<CourseDetailScreen> with Wi
     setState(() => _busy = true);
     try {
       final api = ref.read(apiProvider);
-      if (course['isFree'] == true) {
+      final pass = course['isFree'] != true && (ref.read(authProvider).me?.hasFreePass ?? false);
+      if (course['isFree'] == true || pass) {
         await api.post('/courses/$id/enroll');
         _refreshAll();
         if (mounted) showMessage(context, t('You\'re in! Start your first lesson.', 'এনরোল সম্পন্ন! প্রথম লেসন শুরু করুন।'));
       } else {
         // Paid: open the SSLCommerz page (bKash, Nagad, card…). Enrollment happens
         // on the server once the gateway confirms the payment.
-        final checkout = await api.post<Map<String, dynamic>>('/checkout/course/$id');
+        final checkout = await api.post<Map<String, dynamic>>(Uri(path: '/checkout/course/$id', queryParameters: {'ref': ?affiliateRef}).toString());
         _pendingOrder = checkout['orderId'] as String;
         await launchUrl(Uri.parse(checkout['gatewayUrl'] as String), mode: LaunchMode.externalApplication);
       }
@@ -151,7 +154,7 @@ class _CourseDetailScreenState extends ConsumerState<CourseDetailScreen> with Wi
     );
   }
 
-  bool _locked(Map<String, dynamic> c) => storeBuild && c['enrolled'] != true && c['isFree'] != true;
+  bool _locked(Map<String, dynamic> c) => storeBuild && c['enrolled'] != true && c['isFree'] != true && !(ref.read(authProvider).me?.hasFreePass ?? false);
 
   Map<String, dynamic>? _resumeLesson(Map<String, dynamic> c, Map<String, dynamic>? progress) {
     final lessons = allLessons(c);
@@ -188,7 +191,9 @@ class _CourseDetailScreenState extends ConsumerState<CourseDetailScreen> with Wi
                     ? t('Continue learning', 'শেখা চালিয়ে যান')
                     : c['isFree'] == true
                         ? t('Enroll for free', 'ফ্রি এনরোল করুন')
-                        : t('Buy now', 'এখনই কিনুন'),
+                        : (ref.watch(authProvider).me?.hasFreePass ?? false)
+                            ? t('Enroll with free pass', 'ফ্রি পাস দিয়ে এনরোল')
+                            : t('Buy now', 'এখনই কিনুন'),
                 onPressed: enrolled ? (resume == null ? null : () => context.push('/lessons/${resume['id']}')) : () => _enroll(c),
               ),
             ),
@@ -1007,8 +1012,12 @@ class TeacherProfileScreen extends ConsumerWidget {
                 const SizedBox(width: 16),
                 Expanded(
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text(user['name'] as String, style: text.headlineSmall),
+                    Row(children: [
+                      Flexible(child: Text(user['name'] as String, style: text.headlineSmall)),
+                      if (p['verified'] == true) const Padding(padding: EdgeInsets.only(left: 6), child: BlueTick(size: 22)),
+                    ]),
                     Text(p['headline'] as String, style: text.bodyMedium?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+                    if (p['tier'] != null && p['tier'] != 'NEW') Padding(padding: const EdgeInsets.only(top: 6), child: TierBadge(p['tier'] as String)),
                   ]),
                 ),
               ]),
@@ -1026,15 +1035,25 @@ class TeacherProfileScreen extends ConsumerWidget {
               padding: const EdgeInsets.all(16),
               child: CtaButton(
                 icon: Icons.event_available_rounded,
-                label: t('Book a 1:1 session', '১:১ সেশন বুক করুন'),
+                label: p['hourlyRatePaisa'] == null
+                    ? t('Book a 1:1 session', '১:১ সেশন বুক করুন')
+                    : t('Book a 1:1 session · ${taka(p['hourlyRatePaisa'] as int)}/hour', '১:১ সেশন বুক করুন · ঘণ্টা ${taka(p['hourlyRatePaisa'] as int)}'),
                 onPressed: () => context.push(Uri(path: '/teachers/$id/book', queryParameters: {'name': user['name'] as String}).toString()),
               ),
             ),
-            if ((p['skills'] as List).isNotEmpty)
+            if ([...?(p['expertise'] as List?), ...(p['skills'] as List)].isNotEmpty) ...[
+              SectionHeader(t('Expertise', 'দক্ষতা'), padding: const EdgeInsets.fromLTRB(16, 4, 16, 8)),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Wrap(spacing: 8, runSpacing: 8, children: [for (final s in p['skills'] as List) Chip(label: Text(s as String))]),
+                child: Wrap(spacing: 8, runSpacing: 8, children: [
+                  for (final s in {...?(p['expertise'] as List?), ...(p['skills'] as List)}) Chip(label: Text(s as String)),
+                ]),
               ),
+            ],
+            if ((p['experience'] as String? ?? '').isNotEmpty) ...[
+              SectionHeader(t('Experience', 'অভিজ্ঞতা'), padding: const EdgeInsets.fromLTRB(16, 20, 16, 8)),
+              Padding(padding: const EdgeInsets.symmetric(horizontal: 16), child: Text(p['experience'] as String)),
+            ],
             if ((p['bio'] as String).isNotEmpty) ...[
               SectionHeader(t('About me', 'আমার সম্পর্কে'), padding: const EdgeInsets.fromLTRB(16, 20, 16, 8)),
               Padding(padding: const EdgeInsets.symmetric(horizontal: 16), child: Text(p['bio'] as String)),

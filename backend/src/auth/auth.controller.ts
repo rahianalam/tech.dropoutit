@@ -43,9 +43,10 @@ export class AuthController {
   async me(@CurrentUser() user: AuthUser) {
     const u = await this.prisma.user.findUniqueOrThrow({
       where: { id: user.id },
-      select: { id: true, name: true, email: true, phone: true, avatarUrl: true, createdAt: true },
+      select: { id: true, name: true, email: true, phone: true, avatarUrl: true, createdAt: true, freePassUntil: true },
     });
-    return { ...u, roles: user.roles };
+    const freePassUntil = u.freePassUntil && u.freePassUntil > new Date() ? u.freePassUntil : null;
+    return { ...u, freePassUntil, roles: user.roles };
   }
 
   @Patch('me')

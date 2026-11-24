@@ -21,6 +21,8 @@ import { PushModule } from './push/push.module';
 import { LegalModule } from './legal/legal.module';
 import { UploadsModule } from './uploads/uploads.module';
 import { BookingsModule } from './bookings/bookings.module';
+import { InstructorModule } from './instructor/instructor.module';
+import { GrowthModule } from './growth/growth.module';
 import { StorageModule } from './storage/storage';
 
 @Controller()
@@ -46,6 +48,8 @@ class HealthController {
     PaymentsModule,
     PayoutsModule,
     BookingsModule,
+    InstructorModule,
+    GrowthModule,
     UploadsModule,
     JobsModule,
     PushModule,
