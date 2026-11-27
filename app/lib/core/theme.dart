@@ -109,6 +109,9 @@ ThemeData buildTheme(Brightness brightness) {
   final radius = BorderRadius.circular(14);
   const buttonShape = RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(12)));
   const buttonPadding = EdgeInsets.symmetric(horizontal: 20, vertical: 14);
+  const buttonMin = Size(64, 48); // 48dp touch target everywhere
+  OutlineInputBorder field(Color c, [double w = 1]) =>
+      OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: c, width: w));
 
   return base.copyWith(
     colorScheme: scheme,
@@ -132,24 +135,69 @@ ThemeData buildTheme(Brightness brightness) {
       shape: RoundedRectangleBorder(borderRadius: radius, side: BorderSide(color: scheme.outlineVariant)),
     ),
     filledButtonTheme: FilledButtonThemeData(
-      style: FilledButton.styleFrom(shape: buttonShape, padding: buttonPadding, textStyle: text.labelLarge?.copyWith(fontSize: 15)),
+      style: FilledButton.styleFrom(shape: buttonShape, padding: buttonPadding, minimumSize: buttonMin, textStyle: text.labelLarge?.copyWith(fontSize: 15)),
     ),
     outlinedButtonTheme: OutlinedButtonThemeData(
       style: OutlinedButton.styleFrom(
         shape: buttonShape,
         padding: buttonPadding,
+        minimumSize: buttonMin,
         side: BorderSide(color: scheme.outline),
         textStyle: text.labelLarge?.copyWith(fontSize: 15),
       ),
     ),
-    textButtonTheme: TextButtonThemeData(style: TextButton.styleFrom(textStyle: text.labelLarge)),
+    textButtonTheme: TextButtonThemeData(style: TextButton.styleFrom(textStyle: text.labelLarge, shape: buttonShape)),
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
       fillColor: dark ? scheme.surfaceContainer : Colors.white,
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: scheme.outlineVariant)),
-      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: scheme.outlineVariant)),
-      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: scheme.primary, width: 1.6)),
+      // Labels always sit on the border, so a filled-in form still says what each box is
+      // and the hint inside can show an example.
+      floatingLabelBehavior: FloatingLabelBehavior.always,
+      labelStyle: text.bodyMedium?.copyWith(color: scheme.onSurfaceVariant, fontWeight: FontWeight.w500),
+      floatingLabelStyle: WidgetStateTextStyle.resolveWith((s) => text.bodyMedium!.copyWith(
+            fontWeight: FontWeight.w600,
+            color: s.contains(WidgetState.error) ? scheme.error : (s.contains(WidgetState.focused) ? scheme.primary : scheme.onSurfaceVariant),
+          )),
+      hintStyle: text.bodyMedium?.copyWith(color: scheme.onSurfaceVariant.withValues(alpha: 0.7)),
+      helperStyle: text.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
+      helperMaxLines: 3,
+      errorMaxLines: 3,
+      prefixIconColor: WidgetStateColor.resolveWith((s) => s.contains(WidgetState.focused) ? scheme.primary : scheme.onSurfaceVariant),
+      border: field(scheme.outlineVariant),
+      enabledBorder: field(scheme.outlineVariant),
+      disabledBorder: field(scheme.outlineVariant.withValues(alpha: 0.5)),
+      focusedBorder: field(scheme.primary, 1.6),
+      errorBorder: field(scheme.error),
+      focusedErrorBorder: field(scheme.error, 1.6),
+    ),
+    floatingActionButtonTheme: FloatingActionButtonThemeData(
+      backgroundColor: scheme.secondary,
+      foregroundColor: scheme.onSecondary,
+      elevation: 2,
+      highlightElevation: 4,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(16))),
+      extendedTextStyle: text.labelLarge?.copyWith(fontSize: 15),
+    ),
+    segmentedButtonTheme: SegmentedButtonThemeData(
+      style: SegmentedButton.styleFrom(
+        selectedBackgroundColor: scheme.primaryContainer,
+        selectedForegroundColor: scheme.onPrimaryContainer,
+        side: BorderSide(color: scheme.outlineVariant),
+        textStyle: text.labelLarge,
+      ),
+    ),
+    switchTheme: SwitchThemeData(
+      thumbColor: WidgetStateProperty.resolveWith((s) => s.contains(WidgetState.selected) ? Colors.white : null),
+      trackColor: WidgetStateProperty.resolveWith((s) => s.contains(WidgetState.selected) ? Brand.success : null),
+      trackOutlineColor: WidgetStateProperty.resolveWith((s) => s.contains(WidgetState.selected) ? Colors.transparent : null),
+    ),
+    pageTransitionsTheme: const PageTransitionsTheme(builders: {
+      TargetPlatform.android: FadeForwardsPageTransitionsBuilder(), // iOS keeps its native slide
+    }),
+    tooltipTheme: TooltipThemeData(
+      decoration: BoxDecoration(color: scheme.inverseSurface, borderRadius: BorderRadius.circular(8)),
+      textStyle: text.bodySmall?.copyWith(color: scheme.onInverseSurface),
     ),
     chipTheme: ChipThemeData(
       shape: const StadiumBorder(),
@@ -181,8 +229,23 @@ ThemeData buildTheme(Brightness brightness) {
     listTileTheme: ListTileThemeData(iconColor: scheme.onSurfaceVariant, titleTextStyle: text.titleSmall?.copyWith(fontWeight: FontWeight.w500)),
     dividerTheme: DividerThemeData(color: scheme.outlineVariant, space: 1),
     progressIndicatorTheme: ProgressIndicatorThemeData(color: scheme.secondary, linearTrackColor: scheme.surfaceContainerHighest),
-    snackBarTheme: SnackBarThemeData(behavior: SnackBarBehavior.floating, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
-    bottomSheetTheme: const BottomSheetThemeData(showDragHandle: true, surfaceTintColor: Colors.transparent),
-    dialogTheme: DialogThemeData(surfaceTintColor: Colors.transparent, shape: RoundedRectangleBorder(borderRadius: radius)),
+    snackBarTheme: SnackBarThemeData(
+      behavior: SnackBarBehavior.floating,
+      insetPadding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      contentTextStyle: text.bodyMedium?.copyWith(color: scheme.onInverseSurface),
+    ),
+    bottomSheetTheme: BottomSheetThemeData(
+      showDragHandle: true,
+      surfaceTintColor: Colors.transparent,
+      backgroundColor: scheme.surface,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+    ),
+    dialogTheme: DialogThemeData(
+      surfaceTintColor: Colors.transparent,
+      backgroundColor: scheme.surface,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      titleTextStyle: text.titleLarge,
+    ),
   );
 }

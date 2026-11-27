@@ -129,7 +129,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     TextFormField(
                       controller: _name,
                       textInputAction: TextInputAction.next,
-                      decoration: InputDecoration(labelText: t('Your name', 'আপনার নাম'), prefixIcon: const Icon(Icons.person_outline_rounded)),
+                      decoration: InputDecoration(labelText: t('Your name', 'আপনার নাম'), hintText: t('e.g. Anika Rahman', 'যেমন: আনিকা রহমান'), prefixIcon: const Icon(Icons.person_outline_rounded)),
                       validator: (v) => (v ?? '').trim().length < 2 ? t('Enter your name', 'নাম লিখুন') : null,
                     ),
                     const SizedBox(height: 14),
@@ -140,6 +140,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     textInputAction: TextInputAction.next,
                     decoration: InputDecoration(
                       labelText: t('Email or mobile number', 'ইমেইল অথবা মোবাইল নম্বর'),
+                      hintText: t('you@example.com', 'you@example.com'),
                       prefixIcon: const Icon(Icons.alternate_email_rounded),
                     ),
                     validator: (v) => (v ?? '').trim().isEmpty ? t('Enter your email or mobile', 'ইমেইল বা মোবাইল লিখুন') : null,
@@ -150,6 +151,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     obscureText: !_show,
                     decoration: InputDecoration(
                       labelText: t('Password', 'পাসওয়ার্ড'),
+                      hintText: reg ? t('At least 8 characters', 'কমপক্ষে ৮ অক্ষর') : t('Enter your password', 'পাসওয়ার্ড লিখুন'),
                       prefixIcon: const Icon(Icons.lock_outline_rounded),
                       suffixIcon: IconButton(
                         onPressed: () => setState(() => _show = !_show),
@@ -166,6 +168,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       textCapitalization: TextCapitalization.characters,
                       decoration: InputDecoration(
                         labelText: t('Invite code (optional)', 'ইনভাইট কোড (ঐচ্ছিক)'),
+                        hintText: t('From a friend, e.g. AB12CD', 'বন্ধুর দেওয়া কোড, যেমন: AB12CD'),
                         prefixIcon: const Icon(Icons.card_giftcard_rounded),
                       ),
                     ),

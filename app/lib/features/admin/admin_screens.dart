@@ -173,7 +173,7 @@ class ApplicationsScreen extends ConsumerWidget {
       body: AsyncView(
         value: apps,
         data: (list) => list.isEmpty
-            ? EmptyState(t('No new applications', 'নতুন কোনো আবেদন নেই'), icon: Icons.done_all)
+            ? EmptyState(t('No new applications', 'নতুন কোনো আবেদন নেই'), title: t('All caught up', 'সব কাজ শেষ'), icon: Icons.done_all)
             : ListView(children: [
                 for (final a in list)
                   ListTile(
@@ -210,7 +210,7 @@ class _ApplicationReviewScreenState extends ConsumerState<ApplicationReviewScree
       ref.invalidate(pendingApplicationsProvider);
       ref.invalidate(adminStatsProvider);
       if (mounted) {
-        showMessage(context, t('Decision saved', 'সিদ্ধান্ত সেভ হয়েছে'));
+        showSuccess(context, t('Decision saved', 'সিদ্ধান্ত সেভ হয়েছে'));
         context.pop();
       }
     } catch (e) {
@@ -295,7 +295,7 @@ class CourseReviewScreen extends ConsumerWidget {
       body: AsyncView(
         value: queue,
         data: (list) => list.isEmpty
-            ? EmptyState(t('No courses waiting for review', 'রিভিউয়ের জন্য কোনো কোর্স নেই'), icon: Icons.done_all)
+            ? EmptyState(t('No courses waiting for review', 'রিভিউয়ের জন্য কোনো কোর্স নেই'), title: t('All caught up', 'সব কাজ শেষ'), icon: Icons.done_all)
             : ListView(children: [
                 for (final c in list)
                   Card(
@@ -372,6 +372,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   final _day = TextEditingController();
   String _schedule = 'MONTHLY';
   bool _loaded = false;
+  bool _saving = false;
 
   static String _show(num v, String unit) {
     final n = unit == '%' ? v / 100 : (unit == '৳' ? v / 100 : v);
@@ -399,12 +400,15 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         body[f.key] = f.unit == '#' ? v.round() : (v * 100).round();
       }
     }
+    setState(() => _saving = true);
     try {
       await ref.read(apiProvider).patch('/admin/settings', body);
       ref.invalidate(settingsProvider);
-      if (mounted) showMessage(context, t('Settings saved', 'সেটিংস সেভ হয়েছে'));
+      if (mounted) showSuccess(context, t('Settings saved', 'সেটিংস সেভ হয়েছে'));
     } catch (e) {
       if (mounted) showMessage(context, e);
+    } finally {
+      if (mounted) setState(() => _saving = false);
     }
   }
 
@@ -420,16 +424,20 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           ),
         );
     return Scaffold(
-      appBar: AppBar(title: Text(t('Fees & rules', 'ফি ও নিয়ম')), actions: [TextButton(onPressed: _save, child: Text(t('Save', 'সেভ')))]),
+      appBar: AppBar(title: Text(t('Fees & rules', 'ফি ও নিয়ম'))),
+      bottomNavigationBar: s.hasValue
+          ? BottomActionBar(child: PrimaryButton(label: t('Save changes', 'পরিবর্তন সেভ করুন'), icon: Icons.check_rounded, busy: _saving, onPressed: _save))
+          : null,
       body: AsyncView(
         value: s,
+        onRetry: () => ref.invalidate(settingsProvider),
         data: (data) {
           _load(data);
           return ListView(padding: const EdgeInsets.all(16), children: [
             Text(t('Instructors see these rules before they apply. Changes apply to new sales.', 'ইন্সট্রাক্টররা আবেদনের আগে এই নিয়মগুলো দেখেন। পরিবর্তন নতুন বিক্রিতে প্রযোজ্য হবে।'),
-                style: Theme.of(context).textTheme.bodySmall),
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant)),
             for (final (en, bn, items) in _groups) ...[
-              SectionHeader(t(en, bn), padding: const EdgeInsets.fromLTRB(0, 20, 0, 10)),
+              FormSectionTitle(t(en, bn)),
               for (final f in items) field(_c[f.key]!, t(f.en, f.bn), f.unit),
               if (en == 'Payouts') ...[
                 DropdownButtonFormField<String>(
@@ -446,8 +454,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 if (_schedule == 'MONTHLY') field(_day, t('Payout day of the month (1–28)', 'মাসের কত তারিখে পেআউট (১–২৮)'), '#'),
               ],
             ],
-            const SizedBox(height: 8),
-            FilledButton(onPressed: _save, child: Padding(padding: const EdgeInsets.all(12), child: Text(t('Save', 'সেভ করুন')))),
           ]);
         },
       ),

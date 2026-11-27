@@ -4,6 +4,7 @@ import 'package:material_ui/material_ui.dart';
 import '../../core/i18n.dart';
 import '../../core/auth.dart';
 import '../../core/format.dart';
+import '../../core/theme.dart';
 import '../../core/widgets.dart';
 
 final payoutsProvider = FutureProvider.autoDispose<List<dynamic>>((ref) => ref.read(apiProvider).get('/admin/payouts'));
@@ -21,7 +22,7 @@ class PayoutsScreen extends ConsumerWidget {
       await fn();
       ref.invalidate(payoutsProvider);
       ref.invalidate(revenueProvider);
-      if (context.mounted) showMessage(context, done);
+      if (context.mounted) showSuccess(context, done);
     } catch (e) {
       if (context.mounted) showMessage(context, e);
     }
@@ -48,16 +49,25 @@ class PayoutsScreen extends ConsumerWidget {
               child: Padding(
                 padding: const EdgeInsets.all(16),
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(t('Total sales ${taka(revenue['grossPaisa'] as int)} (${revenue['paidOrders']} orders)', 'মোট বিক্রি ${taka(revenue['grossPaisa'] as int)} (${revenue['paidOrders']} অর্ডার)')),
-                  Text(t('Gateway fees ${taka(revenue['gatewayFeesPaisa'] as int)}', 'গেটওয়ে ফি ${taka(revenue['gatewayFeesPaisa'] as int)}')),
-                  Text(t('Owed to teachers ${taka(revenue['teacherOwedPaisa'] as int)} · sent ${taka(revenue['teacherPaidPaisa'] as int)}', 'টিচারদের পাওনা ${taka(revenue['teacherOwedPaisa'] as int)} · পাঠানো ${taka(revenue['teacherPaidPaisa'] as int)}')),
-                  const SizedBox(height: 4),
-                  Text(t('Platform net income ${taka(revenue['platformNetPaisa'] as int)}', 'প্ল্যাটফর্মের নিট আয় ${taka(revenue['platformNetPaisa'] as int)}'), style: Theme.of(context).textTheme.titleMedium),
+                  Text(t('Money overview', 'টাকার হিসাব'), style: Theme.of(context).textTheme.titleMedium),
+                  const SizedBox(height: 8),
+                  InfoRow(t('Total sales (${revenue['paidOrders']} orders)', 'মোট বিক্রি (${revenue['paidOrders']} অর্ডার)'), taka(revenue['grossPaisa'] as int)),
+                  InfoRow(t('Gateway fees', 'গেটওয়ে ফি'), taka(revenue['gatewayFeesPaisa'] as int)),
+                  InfoRow(t('Owed to teachers', 'টিচারদের পাওনা'), taka(revenue['teacherOwedPaisa'] as int)),
+                  InfoRow(t('Sent to teachers', 'টিচারদের পাঠানো'), taka(revenue['teacherPaidPaisa'] as int)),
+                  const Divider(height: 20),
+                  InfoRow(t('Platform net income', 'প্ল্যাটফর্মের নিট আয়'), taka(revenue['platformNetPaisa'] as int), strong: true, valueColor: Brand.success),
                 ]),
               ),
             ),
           const SizedBox(height: 16),
-          if (list.isEmpty) EmptyState(t('No payouts. Drafts are created automatically on schedule.', 'কোনো পেআউট নেই। শিডিউল অনুযায়ী খসড়া আপনা থেকে তৈরি হবে।'), icon: Icons.payments_outlined),
+          if (list.isEmpty)
+            EmptyState(
+              t('Drafts are created automatically on schedule, or tap "Create payouts now".', 'শিডিউল অনুযায়ী খসড়া আপনা থেকে তৈরি হবে, অথবা "এখন পেআউট তৈরি" চাপুন।'),
+              title: t('No payouts yet', 'এখনো কোনো পেআউট নেই'),
+              icon: Icons.payments_outlined,
+              compact: true,
+            ),
           for (final p in list)
             Card(
               margin: const EdgeInsets.only(bottom: 12),
@@ -72,7 +82,11 @@ class PayoutsScreen extends ConsumerWidget {
                 ),
                 if (p['status'] != 'PAID')
                   OverflowBar(alignment: MainAxisAlignment.end, children: [
-                    TextButton(onPressed: () => _run(context, ref, () => api.delete('/admin/payouts/${p['id']}'), t('Cancelled', 'বাতিল হয়েছে')), child: Text(t('Cancel', 'বাতিল'))),
+                    TextButton(
+                      onPressed: () async {
+                        if (!await confirmAction(context, title: t('Cancel this payout?', 'এই পেআউট বাতিল করবেন?'), confirm: t('Cancel payout', 'পেআউট বাতিল'))) return;
+                        if (context.mounted) await _run(context, ref, () => api.delete('/admin/payouts/${p['id']}'), t('Cancelled', 'বাতিল হয়েছে'));
+                      }, child: Text(t('Cancel', 'বাতিল'))),
                     if (p['status'] == 'DRAFT')
                       FilledButton(onPressed: () => _run(context, ref, () => api.post('/admin/payouts/${p['id']}/approve'), t('Approved', 'অনুমোদিত')), child: Text(t('Approve', 'অনুমোদন'))),
                     if (p['status'] == 'APPROVED')

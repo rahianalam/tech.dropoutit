@@ -72,7 +72,7 @@ class EarningsScreen extends ConsumerWidget {
                 const SizedBox(width: 12),
                 Expanded(child: _Tile(t('On hold', 'হোল্ডে আছে'), taka(e['pendingPaisa'] as int))),
                 const SizedBox(width: 12),
-                Expanded(child: _Tile(t('Total received', 'মোট পেয়েছেন'), taka(e['paidPaisa'] as int))),
+                Expanded(child: _Tile(t('Received', 'পেয়েছেন'), taka(e['paidPaisa'] as int))),
               ]),
               const SizedBox(height: 12),
               Text(
@@ -82,17 +82,23 @@ class EarningsScreen extends ConsumerWidget {
               ),
               const SizedBox(height: 16),
               Card(
+                color: acc?['payoutMethod'] == null ? Theme.of(context).colorScheme.secondaryContainer.withValues(alpha: 0.5) : null,
                 child: ListTile(
-                  leading: const Icon(Icons.account_balance_wallet_outlined),
+                  leading: IconBadge(Icons.account_balance_wallet_outlined, color: acc?['payoutMethod'] == null ? Theme.of(context).colorScheme.secondary : null),
                   title: Text(acc?['payoutMethod'] == null ? t('Add a payout account', 'পেআউট অ্যাকাউন্ট যোগ করুন') : '${_methods[acc!['payoutMethod']]}: ${acc['payoutAccount']}'),
                   subtitle: acc?['payoutMethod'] == null ? Text(t('Needed to get paid', 'টাকা পেতে এটা দরকার')) : null,
                   trailing: const Icon(Icons.edit_outlined),
                   onTap: () => _editAccount(context, ref, acc),
                 ),
               ),
-              const SizedBox(height: 24),
-              Text(t('Payouts', 'পেআউট'), style: text.titleMedium),
-              if ((e['payouts'] as List).isEmpty) Padding(padding: EdgeInsets.all(8), child: Text(t('No payouts yet', 'এখনো কোনো পেআউট হয়নি'))),
+              FormSectionTitle(t('Payouts', 'পেআউট')),
+              if ((e['payouts'] as List).isEmpty)
+                EmptyState(
+                  t('Money you can withdraw is sent here on the payout day.', 'উত্তোলনযোগ্য টাকা পেআউটের দিনে এখানে পাঠানো হবে।'),
+                  title: t('No payouts yet', 'এখনো কোনো পেআউট হয়নি'),
+                  icon: Icons.payments_outlined,
+                  compact: true,
+                ),
               for (final p in e['payouts'] as List)
                 ListTile(
                   contentPadding: EdgeInsets.zero,
@@ -100,11 +106,17 @@ class EarningsScreen extends ConsumerWidget {
                   subtitle: Text([date.format(DateTime.parse(p['createdAt'] as String).toLocal()), if (p['reference'] != null) t('Ref: ${p['reference']}', 'রেফ: ${p['reference']}')].join(' · ')),
                   trailing: Text(p['status'] == 'PAID' ? t('Sent', 'পাঠানো হয়েছে') : t('Processing', 'প্রক্রিয়াধীন')),
                 ),
-              const SizedBox(height: 16),
-              Text(t('Transactions', 'লেনদেন'), style: text.titleMedium),
-              Text(t('Each sale shows the platform fee and VAT taken out. The payment gateway fee is paid by the platform.', 'প্রতিটি বিক্রিতে প্ল্যাটফর্ম ফি ও ভ্যাট কত কাটা হলো দেখানো আছে। পেমেন্ট গেটওয়ের ফি প্ল্যাটফর্ম দেয়।'), style: text.bodySmall),
-              const SizedBox(height: 8),
-              if ((e['entries'] as List).isEmpty) Padding(padding: const EdgeInsets.all(8), child: Text(t('No sales yet', 'এখনো কোনো বিক্রি নেই'))),
+              FormSectionTitle(
+                t('Transactions', 'লেনদেন'),
+                subtitle: t('Each sale shows the platform fee and VAT taken out. The payment gateway fee is paid by the platform.', 'প্রতিটি বিক্রিতে প্ল্যাটফর্ম ফি ও ভ্যাট কত কাটা হলো দেখানো আছে। পেমেন্ট গেটওয়ের ফি প্ল্যাটফর্ম দেয়।'),
+              ),
+              if ((e['entries'] as List).isEmpty)
+                EmptyState(
+                  t('Course sales and paid sessions will appear here.', 'কোর্স বিক্রি আর পেইড সেশন এখানে দেখাবে।'),
+                  title: t('No sales yet', 'এখনো কোনো বিক্রি নেই'),
+                  icon: Icons.receipt_long_outlined,
+                  compact: true,
+                ),
               for (final l in e['entries'] as List) FeeBreakdownTile(l as Map<String, dynamic>),
             ]);
           },
@@ -123,10 +135,11 @@ class _Tile extends StatelessWidget {
   Widget build(BuildContext context) => Card(
         color: strong ? Theme.of(context).colorScheme.primaryContainer : null,
         child: Padding(
-          padding: const EdgeInsets.all(12),
+          padding: const EdgeInsets.fromLTRB(12, 14, 12, 14),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: Theme.of(context).textTheme.labelMedium?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+            const SizedBox(height: 4),
             FittedBox(child: Text(value, style: Theme.of(context).textTheme.titleLarge)),
-            Text(label, style: Theme.of(context).textTheme.bodySmall),
           ]),
         ),
       );

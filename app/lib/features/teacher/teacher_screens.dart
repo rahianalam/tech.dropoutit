@@ -78,7 +78,7 @@ class _TeacherApplyScreenState extends ConsumerState<TeacherApplyScreen> {
         ],
       });
       ref.invalidate(myApplicationProvider);
-      if (mounted) showMessage(context, t('Application submitted. The admin will review it and let you know.', 'আবেদন জমা হয়েছে। অ্যাডমিন রিভিউ করে জানাবেন।'));
+      if (mounted) showSuccess(context, t('Application submitted. The admin will review it and let you know.', 'আবেদন জমা হয়েছে। অ্যাডমিন রিভিউ করে জানাবেন।'));
     } catch (e) {
       if (mounted) showMessage(context, e);
     } finally {
@@ -143,7 +143,7 @@ class _TeacherApplyScreenState extends ConsumerState<TeacherApplyScreen> {
               const SizedBox(height: 16),
               InstructorRulesCard(accepted: _accepted, onChanged: (v) => setState(() => _accepted = v)),
               const SizedBox(height: 16),
-              FilledButton(onPressed: _busy || !_accepted ? null : _submit, child: Padding(padding: EdgeInsets.all(12), child: Text(t('Accept rules and submit', 'নিয়ম মেনে আবেদন জমা দিন')))),
+              FilledButton(onPressed: _busy || !_accepted ? null : _submit, child: Text(t('Accept rules and submit', 'নিয়ম মেনে আবেদন জমা দিন'))),
             ]),
           );
         },
@@ -343,7 +343,7 @@ class CourseEditorScreen extends ConsumerWidget {
       await fn();
       ref.invalidate(editCourseProvider(id));
       ref.invalidate(myCoursesProvider);
-      if (done != null && context.mounted) showMessage(context, done);
+      if (done != null && context.mounted) showSuccess(context, done);
     } catch (e) {
       if (context.mounted) showMessage(context, e);
     }
@@ -404,7 +404,7 @@ class CourseEditorScreen extends ConsumerWidget {
         onSendProgress: (sent, total) => progress.set(lessonId, total > 0 ? sent / total : 0),
       );
       ref.invalidate(editCourseProvider(id));
-      if (context.mounted) showMessage(context, t('Video uploaded ✓', 'ভিডিও আপলোড হয়েছে ✓'));
+      if (context.mounted) showSuccess(context, t('Video uploaded ✓', 'ভিডিও আপলোড হয়েছে ✓'));
       unawaited(_detectLength(ref, lessonId));
     } on DioException catch (e) {
       final err = ApiError.from(e);
@@ -564,7 +564,14 @@ class CourseEditorScreen extends ConsumerWidget {
                             if (name == null || !context.mounted) return;
                             await _run(context, ref, () => api.patch('/teacher/sections/${s['id']}', {'title': name}));
                           } else {
-                            await _run(context, ref, () => api.delete('/teacher/sections/${s['id']}'));
+                            final ok = await confirmAction(
+                              context,
+                              title: t('Delete "${s['title']}"?', '"${s['title']}" মুছবেন?'),
+                              message: t('All lessons and videos in this section will be deleted too.', 'এই সেকশনের সব লেসন আর ভিডিও-ও মুছে যাবে।'),
+                              confirm: t('Delete', 'মুছুন'),
+                            );
+                            if (!ok || !context.mounted) return;
+                            await _run(context, ref, () => api.delete('/teacher/sections/${s['id']}'), t('Section deleted', 'সেকশন মুছে ফেলা হয়েছে'));
                           }
                         },
                         itemBuilder: (_) => [
@@ -608,11 +615,19 @@ class CourseEditorScreen extends ConsumerWidget {
                             case 'preview':
                               await _run(context, ref, () => api.patch('/teacher/lessons/$lid', {'isPreview': l['isPreview'] != true}));
                             case 'removeVideo':
+                              if (!await confirmAction(context, title: t('Remove this video?', 'ভিডিওটা সরাবেন?'), confirm: t('Remove', 'সরান')) || !context.mounted) return;
                               await _run(context, ref, () => api.delete('/teacher/lessons/$lid/video'), t('Video removed', 'ভিডিও সরানো হয়েছে'));
                             case 'watch':
                               context.push('/lessons/$lid');
                             case 'delete':
-                              await _run(context, ref, () => api.delete('/teacher/lessons/$lid'));
+                              final ok = await confirmAction(
+                                context,
+                                title: t('Delete "${l['title']}"?', '"${l['title']}" মুছবেন?'),
+                                message: t('The lesson and its video will be deleted.', 'লেসন আর এর ভিডিও মুছে যাবে।'),
+                                confirm: t('Delete', 'মুছুন'),
+                              );
+                              if (!ok || !context.mounted) return;
+                              await _run(context, ref, () => api.delete('/teacher/lessons/$lid'), t('Lesson deleted', 'লেসন মুছে ফেলা হয়েছে'));
                           }
                         },
                         itemBuilder: (_) => [

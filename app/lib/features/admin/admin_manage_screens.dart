@@ -62,7 +62,7 @@ class _AdminCoursesScreenState extends ConsumerState<AdminCoursesScreen> {
       await fn();
       ref.invalidate(adminCoursesProvider);
       ref.invalidate(adminStatsProvider);
-      if (mounted) showMessage(context, done);
+      if (mounted) showSuccess(context, done);
     } catch (e) {
       if (mounted) showMessage(context, e);
     }
@@ -249,7 +249,7 @@ class CategoriesScreen extends ConsumerWidget {
       final api = ref.read(apiProvider);
       cat == null ? await api.post('/admin/categories', body) : await api.patch('/admin/categories/${cat['id']}', body);
       ref.invalidate(categoriesProvider);
-      if (context.mounted) showMessage(context, t('Category saved', 'ক্যাটাগরি সেভ হয়েছে'));
+      if (context.mounted) showSuccess(context, t('Category saved', 'ক্যাটাগরি সেভ হয়েছে'));
     } catch (e) {
       if (context.mounted) showMessage(context, e);
     }
@@ -342,7 +342,7 @@ class _UsersScreenState extends ConsumerState<UsersScreen> {
     try {
       await fn();
       ref.invalidate(adminUsersProvider);
-      if (mounted) showMessage(context, done);
+      if (mounted) showSuccess(context, done);
     } catch (e) {
       if (mounted) showMessage(context, e);
     }
@@ -394,7 +394,7 @@ class _UsersScreenState extends ConsumerState<UsersScreen> {
                           leading: Avatar(u['name'] as String, radius: 20),
                           title: Text(u['name'] as String),
                           subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                            Text([u['email'], u['phone']].whereType<String>().join(' · ')),
+                            Text([u['email'], u['phone']].whereType<String>().join(' · '), maxLines: 1, overflow: TextOverflow.ellipsis),
                             const SizedBox(height: 4),
                             Wrap(spacing: 4, runSpacing: 4, children: [
                               for (final r in roles) Tag(roleText[r] ?? r),
@@ -406,7 +406,22 @@ class _UsersScreenState extends ConsumerState<UsersScreen> {
                           trailing: id == myId || u['status'] == 'DELETED'
                               ? null
                               : PopupMenuButton<String>(
-                                  onSelected: (v) => switch (v) {
+                                  onSelected: (v) async {
+                                    if (v == 'block' &&
+                                        !await confirmAction(
+                                          context,
+                                          title: t('Block ${u['name']}?', '${u['name']}-কে ব্লক করবেন?'),
+                                          message: t('They will be logged out and can\'t log in until you unblock them.', 'তিনি লগআউট হয়ে যাবেন, আনব্লক না করা পর্যন্ত লগইন করতে পারবেন না।'),
+                                          confirm: t('Block', 'ব্লক'),
+                                        )) {
+                                      return;
+                                    }
+                                    if (v == 'admin-' &&
+                                        !(context.mounted &&
+                                            await confirmAction(context, title: t('Remove admin role from ${u['name']}?', '${u['name']}-এর অ্যাডমিন রোল সরাবেন?'), confirm: t('Remove', 'সরান')))) {
+                                      return;
+                                    }
+                                    await switch (v) {
                                     'teacher+' => _act(() => api.patch('/admin/users/$id/roles', {'add': ['TEACHER']}), t('Now a teacher', 'এখন টিচার')),
                                     'teacher-' => _act(() => api.patch('/admin/users/$id/roles', {'remove': ['TEACHER']}), t('Teacher role removed', 'টিচার রোল সরানো হয়েছে')),
                                     'tick+' => _act(() => api.post('/admin/teachers/$id/verify', {'verified': true}), t('Blue tick given', 'ব্লু টিক দেওয়া হয়েছে')),
@@ -415,6 +430,7 @@ class _UsersScreenState extends ConsumerState<UsersScreen> {
                                     'admin-' => _act(() => api.patch('/admin/users/$id/roles', {'remove': ['ADMIN']}), t('Admin role removed', 'অ্যাডমিন রোল সরানো হয়েছে')),
                                     'block' => _act(() => api.patch('/admin/users/$id/status', {'status': 'BLOCKED'}), t('User blocked', 'ইউজার ব্লক হয়েছে')),
                                     _ => _act(() => api.patch('/admin/users/$id/status', {'status': 'ACTIVE'}), t('User unblocked', 'আনব্লক হয়েছে')),
+                                    };
                                   },
                                   itemBuilder: (_) => [
                                     roles.contains('TEACHER')

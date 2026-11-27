@@ -32,7 +32,7 @@ final _date = DateFormat('d MMM y');
 
 Future<void> _copy(BuildContext context, String text) async {
   await Clipboard.setData(ClipboardData(text: text));
-  if (context.mounted) showMessage(context, t('Copied', 'কপি হয়েছে'));
+  if (context.mounted) showSuccess(context, t('Copied', 'কপি হয়েছে'));
 }
 
 Map<String, String> get _methods => {'bkash': 'bKash', 'nagad': 'Nagad', 'rocket': 'Rocket', 'bank': t('Bank', 'ব্যাংক')};
@@ -164,7 +164,7 @@ class _AffiliateDashboardState extends ConsumerState<AffiliateDashboard> {
         if (!mounted) return;
         final paid = await payOrder(context, ref, c);
         ref.invalidate(affiliateProvider);
-        if (paid && mounted) showMessage(context, t('Membership paid', 'মেম্বারশিপ ফি দেওয়া হয়েছে'));
+        if (paid && mounted) showSuccess(context, t('Membership paid', 'মেম্বারশিপ ফি দেওয়া হয়েছে'));
       });
 
   Future<void> _payout(Map<String, dynamic> p) async {
@@ -580,7 +580,7 @@ class _AffiliateVerifyScreenState extends ConsumerState<AffiliateVerifyScreen> {
       });
       ref.invalidate(affiliateProvider);
       if (mounted) {
-        showMessage(context, t('Sent for review', 'রিভিউর জন্য পাঠানো হয়েছে'));
+        showSuccess(context, t('Sent for review', 'রিভিউর জন্য পাঠানো হয়েছে'));
         context.pop();
       }
     } on DioException catch (e) {
@@ -732,7 +732,7 @@ class AdminAffiliateScreen extends ConsumerWidget {
     try {
       await fn();
       ref.invalidate(adminAffiliateProvider(id));
-      if (context.mounted) showMessage(context, done);
+      if (context.mounted) showSuccess(context, done);
     } catch (e) {
       if (context.mounted) showMessage(context, e);
     }

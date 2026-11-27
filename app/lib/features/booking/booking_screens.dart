@@ -52,7 +52,7 @@ class _BookSessionScreenState extends ConsumerState<BookSessionScreen> with Widg
       if (o['status'] == 'PAID') {
         _pendingOrder = null;
         if (mounted) {
-          showMessage(context, t('Paid. Request sent: the instructor will accept or decline soon.', 'পেমেন্ট হয়েছে। রিকোয়েস্ট পাঠানো হয়েছে: ইনস্ট্রাক্টর শিগগিরই গ্রহণ বা বাতিল করবেন।'));
+          showSuccess(context, t('Paid. Request sent: the instructor will accept or decline soon.', 'পেমেন্ট হয়েছে। রিকোয়েস্ট পাঠানো হয়েছে: ইনস্ট্রাক্টর শিগগিরই গ্রহণ বা বাতিল করবেন।'));
           context.go('/learning?tab=sessions');
         }
         return;
@@ -71,7 +71,7 @@ class _BookSessionScreenState extends ConsumerState<BookSessionScreen> with Widg
       final res = await ref.read(apiProvider).post<Map<String, dynamic>>('/bookings', {'teacherId': widget.teacherId, 'startAt': slot['startAt']});
       if (res['gatewayUrl'] == null) {
         if (mounted) {
-          showMessage(context, t('Request sent: the instructor will accept or decline soon.', 'রিকোয়েস্ট পাঠানো হয়েছে: ইনস্ট্রাক্টর শিগগিরই গ্রহণ বা বাতিল করবেন।'));
+          showSuccess(context, t('Request sent: the instructor will accept or decline soon.', 'রিকোয়েস্ট পাঠানো হয়েছে: ইনস্ট্রাক্টর শিগগিরই গ্রহণ বা বাতিল করবেন।'));
           context.go('/learning?tab=sessions');
         }
         return;
@@ -152,7 +152,7 @@ class BookingTile extends ConsumerWidget {
     try {
       await fn();
       ref.invalidate(asTeacher ? teacherBookingsProvider : myBookingsProvider);
-      if (context.mounted) showMessage(context, done);
+      if (context.mounted) showSuccess(context, done);
     } catch (e) {
       if (context.mounted) showMessage(context, e);
     }
@@ -279,7 +279,12 @@ class MySessionsList extends ConsumerWidget {
       value: list,
       onRetry: () => ref.invalidate(myBookingsProvider),
       data: (items) => items.isEmpty
-          ? EmptyState(t('You haven\'t booked any sessions. Book one from a teacher\'s profile.', 'কোনো সেশন বুক করেননি। টিচারের প্রোফাইল থেকে সেশন বুক করুন।'), icon: Icons.event_available_outlined)
+          ? EmptyState(
+              t('Get 1:1 help from an instructor. Open any instructor\'s profile and pick a time.', 'ইনস্ট্রাক্টরের কাছ থেকে ১:১ সাহায্য নিন। যেকোনো ইনস্ট্রাক্টরের প্রোফাইল খুলে সময় বেছে নিন।'),
+              title: t('No sessions booked yet', 'এখনো কোনো সেশন বুক করেননি'),
+              icon: Icons.event_available_outlined,
+              action: FilledButton.icon(onPressed: () => context.go('/'), icon: const Icon(Icons.person_search_rounded), label: Text(t('Find an instructor', 'ইনস্ট্রাক্টর খুঁজুন'))),
+            )
           : RefreshIndicator(
               onRefresh: () => ref.refresh(myBookingsProvider.future),
               child: ListView.separated(
@@ -306,7 +311,12 @@ class TeacherSessionsScreen extends ConsumerWidget {
         value: list,
         onRetry: () => ref.invalidate(teacherBookingsProvider),
         data: (items) => items.isEmpty
-            ? EmptyState(t('No bookings yet. Add your schedule so students can book you.', 'এখনো কোনো বুকিং নেই। সময়সূচি দিলে স্টুডেন্টরা বুক করতে পারবে।'), icon: Icons.event_note_outlined)
+            ? EmptyState(
+                t('Add your weekly schedule so students can book you.', 'সাপ্তাহিক সময়সূচি দিন, তাহলে স্টুডেন্টরা আপনাকে বুক করতে পারবে।'),
+                title: t('No bookings yet', 'এখনো কোনো বুকিং নেই'),
+                icon: Icons.event_note_outlined,
+                action: FilledButton.icon(onPressed: () => context.push('/teacher/availability'), icon: const Icon(Icons.schedule_rounded), label: Text(t('Set your schedule', 'সময়সূচি দিন'))),
+              )
             : ListView.separated(
                 padding: const EdgeInsets.all(16),
                 itemCount: items.length,
@@ -330,6 +340,8 @@ class AvailabilityScreen extends ConsumerStatefulWidget {
 
 class _AvailabilityScreenState extends ConsumerState<AvailabilityScreen> {
   List<Map<String, int>>? _rules;
+  bool _dirty = false;
+  bool _saving = false;
 
   String _hm(int m) => _time.format(DateTime(2000, 1, 1, m ~/ 60, m % 60));
 
@@ -347,11 +359,15 @@ class _AvailabilityScreenState extends ConsumerState<AvailabilityScreen> {
           content: Column(mainAxisSize: MainAxisSize.min, children: [
             DropdownButtonFormField<int>(
               initialValue: weekday,
+              decoration: InputDecoration(labelText: t('Day', 'দিন')),
               items: [for (var i = 0; i < 7; i++) DropdownMenuItem(value: i, child: Text(_weekdays[i]))],
               onChanged: (v) => set(() => weekday = v!),
             ),
+            const SizedBox(height: 4),
             ListTile(
               contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.schedule_rounded),
+              trailing: const Icon(Icons.edit_outlined, size: 18),
               title: Text(t('Start: ${start.format(ctx)}', 'শুরু: ${start.format(ctx)}')),
               onTap: () async {
                 final t = await showTimePicker(context: ctx, initialTime: start);
@@ -360,6 +376,8 @@ class _AvailabilityScreenState extends ConsumerState<AvailabilityScreen> {
             ),
             ListTile(
               contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.schedule_rounded),
+              trailing: const Icon(Icons.edit_outlined, size: 18),
               title: Text(t('End: ${end.format(ctx)}', 'শেষ: ${end.format(ctx)}')),
               onTap: () async {
                 final t = await showTimePicker(context: ctx, initialTime: end);
@@ -391,6 +409,11 @@ class _AvailabilityScreenState extends ConsumerState<AvailabilityScreen> {
       ),
     );
     if (ok != true) return;
+    if (end.hour * 60 + end.minute <= start.hour * 60 + start.minute) {
+      if (mounted) showMessage(context, t('End time must be after the start time', 'শেষের সময় শুরুর পরে হতে হবে'));
+      return;
+    }
+    _dirty = true;
     setState(() => _rules!.add({
           'weekday': weekday,
           'startMinute': start.hour * 60 + start.minute,
@@ -401,49 +424,96 @@ class _AvailabilityScreenState extends ConsumerState<AvailabilityScreen> {
   }
 
   Future<void> _save() async {
+    setState(() => _saving = true);
     try {
       await ref.read(apiProvider).dio.put('/teacher/availability', data: {'rules': _rules});
       ref.invalidate(availabilityProvider);
-      if (mounted) showMessage(context, t('Schedule saved', 'সময়সূচি সেভ হয়েছে'));
+      _dirty = false;
+      if (mounted) showSuccess(context, t('Schedule saved', 'সময়সূচি সেভ হয়েছে'));
     } catch (e) {
       if (mounted) showMessage(context, e);
+    } finally {
+      if (mounted) setState(() => _saving = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final data = ref.watch(availabilityProvider);
-    return Scaffold(
-      appBar: AppBar(title: Text(t('Weekly schedule', 'সাপ্তাহিক সময়সূচি')), actions: [TextButton(onPressed: _rules == null ? null : _save, child: Text(t('Save', 'সেভ')))]),
-      floatingActionButton: FloatingActionButton(onPressed: _rules == null ? null : _add, child: const Icon(Icons.add)),
-      body: AsyncView(
-        value: data,
-        data: (rules) {
-          _rules ??= [
-            for (final r in rules)
-              {
-                'weekday': r['weekday'] as int,
-                'startMinute': r['startMinute'] as int,
-                'endMinute': r['endMinute'] as int,
-                'slotMinutes': r['slotMinutes'] as int,
-                'priceBdt': (r['pricePaisa'] as int) ~/ 100,
-              },
-          ];
-          final sorted = [..._rules!]..sort((a, b) => (a['weekday']! * 1440 + a['startMinute']!) - (b['weekday']! * 1440 + b['startMinute']!));
-          return ListView(padding: const EdgeInsets.all(16), children: [
-            Text(t('Add the times you can teach (Bangladesh time). Students only see free slots.', 'যে সময়গুলোতে আপনি পড়াতে পারবেন সেগুলো যোগ করুন (বাংলাদেশ সময়)। স্টুডেন্টরা শুধু খালি স্লট দেখবে।')),
-            const SizedBox(height: 12),
-            if (sorted.isEmpty) EmptyState(t('No times added yet', 'এখনো কোনো সময় যোগ করেননি'), icon: Icons.schedule),
-            for (final r in sorted)
-              Card(
-                child: ListTile(
-                  title: Text('${_weekdays[r['weekday']!]} · ${_hm(r['startMinute']!)} – ${_hm(r['endMinute']!)}'),
-                  subtitle: Text(t('${r['slotMinutes']} min · ${r['priceBdt'] == 0 ? 'Free' : '৳${r['priceBdt']}'}', '${r['slotMinutes']} মিনিট · ${r['priceBdt'] == 0 ? 'ফ্রি' : '৳${r['priceBdt']}'}')),
-                  trailing: IconButton(icon: const Icon(Icons.delete_outline), onPressed: () => setState(() => _rules!.remove(r))),
-                ),
+    // Fill the editable copy before building the bars, so Add and Save work on the first frame.
+    final loaded = data.value;
+    if (_rules == null && loaded != null) {
+      _rules = [
+        for (final r in loaded)
+          {
+            'weekday': r['weekday'] as int,
+            'startMinute': r['startMinute'] as int,
+            'endMinute': r['endMinute'] as int,
+            'slotMinutes': r['slotMinutes'] as int,
+            'priceBdt': (r['pricePaisa'] as int) ~/ 100,
+          },
+      ];
+    }
+    final scheme = Theme.of(context).colorScheme;
+    return UnsavedChangesGuard(
+      dirty: _dirty,
+      child: Scaffold(
+        appBar: AppBar(title: Text(t('Weekly schedule', 'সাপ্তাহিক সময়সূচি'))),
+        bottomNavigationBar: _rules == null
+            ? null
+            : BottomActionBar(
+                note: _dirty ? t('You have unsaved changes', 'সেভ না করা পরিবর্তন আছে') : null,
+                child: PrimaryButton(label: t('Save schedule', 'সময়সূচি সেভ করুন'), icon: Icons.check_rounded, busy: _saving, onPressed: _dirty ? _save : null),
               ),
-          ]);
-        },
+        body: AsyncView(
+          value: data,
+          onRetry: () => ref.invalidate(availabilityProvider),
+          data: (_) {
+            final sorted = [..._rules!]..sort((a, b) => (a['weekday']! * 1440 + a['startMinute']!) - (b['weekday']! * 1440 + b['startMinute']!));
+            return ListView(padding: const EdgeInsets.all(16), children: [
+              Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Icon(Icons.info_outline_rounded, size: 18, color: scheme.onSurfaceVariant),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    t('Add the times you can teach (Bangladesh time). Students only see free slots.', 'যে সময়গুলোতে আপনি পড়াতে পারবেন সেগুলো যোগ করুন (বাংলাদেশ সময়)। স্টুডেন্টরা শুধু খালি স্লট দেখবে।'),
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
+                  ),
+                ),
+              ]),
+              const SizedBox(height: 16),
+              if (sorted.isEmpty)
+                EmptyState(
+                  t('Students can book you once you add at least one time.', 'অন্তত একটা সময় যোগ করলে স্টুডেন্টরা বুক করতে পারবে।'),
+                  title: t('No times added yet', 'এখনো কোনো সময় যোগ করেননি'),
+                  icon: Icons.schedule,
+                  compact: true,
+                ),
+              for (final r in sorted)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: Card(
+                    child: ListTile(
+                      contentPadding: const EdgeInsets.fromLTRB(16, 4, 8, 4),
+                      leading: IconBadge(Icons.event_repeat_rounded, size: 40),
+                      title: Text('${_weekdays[r['weekday']!]} · ${_hm(r['startMinute']!)} – ${_hm(r['endMinute']!)}'),
+                      subtitle: Text(t('${r['slotMinutes']} min · ${r['priceBdt'] == 0 ? 'Free' : '৳${r['priceBdt']}'}', '${r['slotMinutes']} মিনিট · ${r['priceBdt'] == 0 ? 'ফ্রি' : '৳${r['priceBdt']}'}')),
+                      trailing: IconButton(
+                        tooltip: t('Remove', 'মুছুন'),
+                        icon: const Icon(Icons.delete_outline),
+                        onPressed: () => setState(() {
+                          _rules!.remove(r);
+                          _dirty = true;
+                        }),
+                      ),
+                    ),
+                  ),
+                ),
+              const SizedBox(height: 4),
+              OutlinedButton.icon(onPressed: _add, icon: const Icon(Icons.add_rounded), label: Text(t('Add a time', 'সময় যোগ করুন'))),
+            ]);
+          },
+        ),
       ),
     );
   }
