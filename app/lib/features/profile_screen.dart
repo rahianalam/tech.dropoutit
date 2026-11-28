@@ -97,8 +97,8 @@ class ProfileScreen extends ConsumerWidget {
               const SizedBox(width: 14),
               Expanded(
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(me.name, style: text.titleMedium),
-                  Text(contact, style: text.bodySmall?.copyWith(color: scheme.onSurfaceVariant)),
+                  Text(me.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: text.titleMedium),
+                  Text(contact, maxLines: 1, overflow: TextOverflow.ellipsis, style: text.bodySmall?.copyWith(color: scheme.onSurfaceVariant)),
                   const SizedBox(height: 6),
                   Wrap(spacing: 6, runSpacing: 4, children: [
                     if (me.isAdmin) Tag(t('Admin', 'অ্যাডমিন'), color: scheme.primaryContainer, textColor: scheme.onPrimaryContainer),

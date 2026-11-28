@@ -85,7 +85,7 @@ class _CourseDetailScreenState extends ConsumerState<CourseDetailScreen> with Wi
       if (o['status'] == 'PAID') {
         _pendingOrder = null;
         _refreshAll();
-        if (mounted) showMessage(context, t('Payment successful! Start learning.', 'পেমেন্ট সফল! কোর্স শুরু করুন।'));
+        if (mounted) showSuccess(context, t('Payment successful! Start learning.', 'পেমেন্ট সফল! কোর্স শুরু করুন।'));
         return;
       }
       if (o['status'] != 'PENDING') break;
@@ -112,7 +112,7 @@ class _CourseDetailScreenState extends ConsumerState<CourseDetailScreen> with Wi
       if (course['isFree'] == true || pass) {
         await api.post('/courses/$id/enroll');
         _refreshAll();
-        if (mounted) showMessage(context, t('You\'re in! Start your first lesson.', 'এনরোল সম্পন্ন! প্রথম লেসন শুরু করুন।'));
+        if (mounted) showSuccess(context, t('You\'re in! Start your first lesson.', 'এনরোল সম্পন্ন! প্রথম লেসন শুরু করুন।'));
       } else {
         // Paid: open the SSLCommerz page (bKash, Nagad, card…). Enrollment happens
         // on the server once the gateway confirms the payment.
@@ -134,7 +134,7 @@ class _CourseDetailScreenState extends ConsumerState<CourseDetailScreen> with Wi
       await ref.read(apiProvider).post('/courses/$id/reviews', {'rating': r.$1, if (r.$2.isNotEmpty) 'comment': r.$2});
       ref.invalidate(courseReviewsProvider(id));
       ref.invalidate(courseProvider(id));
-      if (mounted) showMessage(context, t('Thanks for your review!', 'রিভিউয়ের জন্য ধন্যবাদ!'));
+      if (mounted) showSuccess(context, t('Thanks for your review!', 'রিভিউয়ের জন্য ধন্যবাদ!'));
     } catch (e) {
       if (mounted) showMessage(context, e);
     }

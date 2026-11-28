@@ -243,7 +243,7 @@ class _StoragePlansScreenState extends ConsumerState<StoragePlansScreen> {
       if (!mounted) return;
       if (await payOrder(context, ref, res)) {
         ref.invalidate(teacherStatusProvider);
-        if (mounted) showMessage(context, t('Your plan is active.', 'আপনার প্ল্যান চালু হয়েছে।'));
+        if (mounted) showSuccess(context, t('Your plan is active.', 'আপনার প্ল্যান চালু হয়েছে।'));
       }
     } catch (e) {
       if (mounted) showMessage(context, e);
@@ -363,7 +363,7 @@ class _TeacherProfileEditScreenState extends ConsumerState<TeacherProfileEditScr
       });
       ref.invalidate(teacherStatusProvider);
       if (mounted) {
-        showMessage(context, t('Profile saved', 'প্রোফাইল সেভ হয়েছে'));
+        showSuccess(context, t('Profile saved', 'প্রোফাইল সেভ হয়েছে'));
         Navigator.pop(context);
       }
     } catch (e) {

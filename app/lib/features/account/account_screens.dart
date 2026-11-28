@@ -28,7 +28,7 @@ class _AccountSecurityScreenState extends ConsumerState<AccountSecurityScreen> {
     try {
       await fn();
       await ref.read(authProvider.notifier).reload();
-      if (mounted) showMessage(context, done);
+      if (mounted) showSuccess(context, done);
     } catch (e) {
       if (mounted) showMessage(context, e);
     } finally {
@@ -101,7 +101,7 @@ class _AccountSecurityScreenState extends ConsumerState<AccountSecurityScreen> {
             const SizedBox(height: 12),
             TextField(controller: _email, keyboardType: TextInputType.emailAddress, decoration: InputDecoration(labelText: t('Email', 'ইমেইল'))),
             const SizedBox(height: 12),
-            TextField(controller: _phone, keyboardType: TextInputType.phone, decoration: InputDecoration(labelText: t('Mobile (01XXXXXXXXX)', 'মোবাইল (01XXXXXXXXX)'))),
+            TextField(controller: _phone, keyboardType: TextInputType.phone, decoration: InputDecoration(labelText: t('Mobile', 'মোবাইল'), hintText: '01XXXXXXXXX')),
             const SizedBox(height: 12),
             TextField(controller: _loginPassword, obscureText: true, decoration: InputDecoration(labelText: t('Current password (to confirm)', 'বর্তমান পাসওয়ার্ড (নিশ্চিত করতে)'))),
             const SizedBox(height: 12),
@@ -115,7 +115,7 @@ class _AccountSecurityScreenState extends ConsumerState<AccountSecurityScreen> {
             const SizedBox(height: 12),
             TextField(controller: _current, obscureText: true, decoration: InputDecoration(labelText: t('Current password', 'বর্তমান পাসওয়ার্ড'))),
             const SizedBox(height: 12),
-            TextField(controller: _next, obscureText: true, decoration: InputDecoration(labelText: t('New password (8+ characters)', 'নতুন পাসওয়ার্ড (৮+ অক্ষর)'))),
+            TextField(controller: _next, obscureText: true, decoration: InputDecoration(labelText: t('New password', 'নতুন পাসওয়ার্ড'), helperText: t('At least 8 characters', 'কমপক্ষে ৮ অক্ষর'))),
             const SizedBox(height: 12),
             TextField(controller: _again, obscureText: true, decoration: InputDecoration(labelText: t('New password again', 'নতুন পাসওয়ার্ড আবার'))),
             const SizedBox(height: 12),

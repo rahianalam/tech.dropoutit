@@ -88,14 +88,14 @@ class _EmployerSetupScreenState extends ConsumerState<EmployerSetupScreen> {
             ],
             TextFormField(
               controller: _name,
-              decoration: InputDecoration(labelText: t('Company name', 'কোম্পানির নাম'), border: OutlineInputBorder()),
+              decoration: InputDecoration(labelText: t('Company name', 'কোম্পানির নাম')),
               validator: (v) => (v ?? '').trim().length < 2 ? t('Enter a name', 'নাম দিন') : null,
             ),
             const SizedBox(height: 12),
             TextFormField(
               controller: _website,
               keyboardType: TextInputType.url,
-              decoration: InputDecoration(labelText: t('Website or Facebook page (optional)', 'ওয়েবসাইট বা ফেসবুক পেজ (ঐচ্ছিক)'), hintText: 'https://', border: OutlineInputBorder()),
+              decoration: InputDecoration(labelText: t('Website or Facebook page (optional)', 'ওয়েবসাইট বা ফেসবুক পেজ (ঐচ্ছিক)'), hintText: 'https://'),
               validator: (v) {
                 final t = (v ?? '').trim();
                 if (t.isEmpty) return null;
@@ -104,15 +104,15 @@ class _EmployerSetupScreenState extends ConsumerState<EmployerSetupScreen> {
               },
             ),
             const SizedBox(height: 12),
-            TextFormField(controller: _location, decoration: InputDecoration(labelText: t('Address / area (optional)', 'ঠিকানা/এলাকা (ঐচ্ছিক)'), border: OutlineInputBorder())),
+            TextFormField(controller: _location, decoration: InputDecoration(labelText: t('Address / area (optional)', 'ঠিকানা/এলাকা (ঐচ্ছিক)'))),
             const SizedBox(height: 12),
             TextFormField(
               controller: _about,
               maxLines: 4,
-              decoration: InputDecoration(labelText: t('About the company (optional)', 'কোম্পানি সম্পর্কে (ঐচ্ছিক)'), border: OutlineInputBorder(), alignLabelWithHint: true),
+              decoration: InputDecoration(labelText: t('About the company (optional)', 'কোম্পানি সম্পর্কে (ঐচ্ছিক)'), alignLabelWithHint: true),
             ),
             const SizedBox(height: 16),
-            FilledButton(onPressed: _busy ? null : _save, child: Padding(padding: EdgeInsets.all(12), child: Text(t('Save', 'সেভ করুন')))),
+            FilledButton(onPressed: _busy ? null : _save, child: Text(t('Save', 'সেভ করুন'))),
           ]),
         ),
       );
@@ -150,7 +150,12 @@ class EmployerDashboard extends ConsumerWidget {
           value: jobs,
           onRetry: () => ref.invalidate(myJobsProvider),
           data: (list) => list.isEmpty
-              ? ListView(children: [SizedBox(height: 80), EmptyState(t('You haven\'t posted any jobs yet. Tap "New job".', 'এখনো কোনো জব পোস্ট করেননি। "নতুন জব" চাপুন।'), icon: Icons.post_add)])
+              ? ListView(children: [SizedBox(height: 80), EmptyState(
+                  t('Post your first job and start getting applications from skilled learners.', 'প্রথম জব পোস্ট করুন, দক্ষ শিক্ষার্থীদের কাছ থেকে আবেদন পেতে শুরু করুন।'),
+                  title: t('No jobs posted yet', 'এখনো কোনো জব পোস্ট করেননি'),
+                  icon: Icons.post_add,
+                  action: FilledButton.icon(onPressed: () => context.push('/employer/jobs/new'), icon: const Icon(Icons.add_rounded), label: Text(t('Post a job', 'জব পোস্ট করুন'))),
+                )])
               : ListView.separated(
                   padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
                   itemCount: list.length,
@@ -302,38 +307,38 @@ class _JobEditorScreenState extends ConsumerState<JobEditorScreen> {
           child: ListView(padding: const EdgeInsets.all(16), children: [
             TextFormField(
               controller: _title,
-              decoration: InputDecoration(labelText: t('Job title', 'পদের নাম'), hintText: t('e.g. Junior Flutter Developer', 'যেমন: Junior Flutter Developer'), border: OutlineInputBorder()),
+              decoration: InputDecoration(labelText: t('Job title', 'পদের নাম'), hintText: t('e.g. Junior Flutter Developer', 'যেমন: Junior Flutter Developer')),
               validator: (v) => (v ?? '').trim().length < 5 ? t('At least 5 characters', 'কমপক্ষে ৫ অক্ষর') : null,
             ),
             const SizedBox(height: 12),
             DropdownButtonFormField<String>(
               initialValue: _type,
-              decoration: InputDecoration(labelText: t('Type', 'ধরন'), border: OutlineInputBorder()),
+              decoration: InputDecoration(labelText: t('Type', 'ধরন')),
               items: [for (final e in jobTypes.entries) DropdownMenuItem(value: e.key, child: Text(e.value))],
               onChanged: (v) => setState(() => _type = v!),
             ),
             const SizedBox(height: 12),
             TextFormField(
               controller: _skills,
-              decoration: InputDecoration(labelText: t('Required skills (comma separated)', 'দরকারি স্কিল (কমা দিয়ে)'), hintText: 'Flutter, Dart, REST API', border: OutlineInputBorder()),
+              decoration: InputDecoration(labelText: t('Required skills (comma separated)', 'দরকারি স্কিল (কমা দিয়ে)'), hintText: 'Flutter, Dart, REST API'),
               validator: (v) => splitSkills(v ?? '').isEmpty ? t('Add at least one skill', 'অন্তত একটা স্কিল দিন') : null,
             ),
             const SizedBox(height: 12),
             TextFormField(
               controller: _desc,
               maxLines: 8,
-              decoration: InputDecoration(labelText: t('Job description, duties, benefits', 'কাজের বিবরণ, দায়িত্ব, সুবিধা'), border: OutlineInputBorder(), alignLabelWithHint: true),
+              decoration: InputDecoration(labelText: t('Job description, duties, benefits', 'কাজের বিবরণ, দায়িত্ব, সুবিধা'), alignLabelWithHint: true),
               validator: (v) => (v ?? '').trim().length < 50 ? t('Write at least 50 characters', 'কমপক্ষে ৫০ অক্ষর লিখুন') : null,
             ),
             const SizedBox(height: 12),
-            TextFormField(controller: _location, decoration: InputDecoration(labelText: t('Location (optional)', 'কাজের জায়গা (ঐচ্ছিক)'), border: OutlineInputBorder())),
+            TextFormField(controller: _location, decoration: InputDecoration(labelText: t('Location (optional)', 'কাজের জায়গা (ঐচ্ছিক)'))),
             const SizedBox(height: 12),
             Row(children: [
               Expanded(
                 child: TextFormField(
                   controller: _min,
                   keyboardType: TextInputType.number,
-                  decoration: InputDecoration(labelText: t('Salary from (৳/month)', 'বেতন থেকে (৳/মাস)'), border: OutlineInputBorder()),
+                  decoration: InputDecoration(labelText: t('Salary from (৳/month)', 'বেতন থেকে (৳/মাস)')),
                   validator: (v) => (v ?? '').trim().isNotEmpty && int.tryParse(v!.trim()) == null ? t('Numbers only', 'শুধু সংখ্যা') : null,
                 ),
               ),
@@ -342,7 +347,7 @@ class _JobEditorScreenState extends ConsumerState<JobEditorScreen> {
                 child: TextFormField(
                   controller: _max,
                   keyboardType: TextInputType.number,
-                  decoration: InputDecoration(labelText: t('Up to (৳/month)', 'পর্যন্ত (৳/মাস)'), border: OutlineInputBorder()),
+                  decoration: InputDecoration(labelText: t('Up to (৳/month)', 'পর্যন্ত (৳/মাস)')),
                   validator: (v) {
                     if ((v ?? '').trim().isEmpty) return null;
                     final hi = int.tryParse(v!.trim());
@@ -368,7 +373,7 @@ class _JobEditorScreenState extends ConsumerState<JobEditorScreen> {
             const SizedBox(height: 16),
             FilledButton(
               onPressed: _busy ? null : _save,
-              child: Padding(padding: EdgeInsets.all(12), child: Text(widget.job == null ? t('Post', 'পোস্ট করুন') : t('Save', 'সেভ করুন'))),
+              child: Text(widget.job == null ? t('Post', 'পোস্ট করুন') : t('Save', 'সেভ করুন')),
             ),
           ]),
         ),
@@ -390,7 +395,7 @@ class ApplicantsScreen extends ConsumerWidget {
           value: list,
           onRetry: () => ref.invalidate(applicantsProvider(jobId)),
           data: (items) => items.isEmpty
-              ? ListView(children: [SizedBox(height: 80), EmptyState(t('Nobody has applied yet.', 'এখনো কেউ আবেদন করেনি।'), icon: Icons.hourglass_empty)])
+              ? ListView(children: [SizedBox(height: 80), EmptyState(t('Applications will show up here. We\'ll notify you when someone applies.', 'আবেদন এলে এখানে দেখাবে, আর আপনাকে নোটিফিকেশন পাঠানো হবে।'), title: t('Nobody has applied yet', 'এখনো কেউ আবেদন করেনি'), icon: Icons.hourglass_empty)])
               : ListView.separated(
                   padding: const EdgeInsets.all(16),
                   itemCount: items.length,
@@ -534,7 +539,7 @@ class _PendingJobs extends ConsumerWidget {
       try {
         await fn();
         ref.invalidate(_pendingJobsProvider);
-        if (context.mounted) showMessage(context, done);
+        if (context.mounted) showSuccess(context, done);
       } catch (e) {
         if (context.mounted) showMessage(context, e);
       }
@@ -544,7 +549,7 @@ class _PendingJobs extends ConsumerWidget {
       value: list,
       onRetry: () => ref.invalidate(_pendingJobsProvider),
       data: (items) => items.isEmpty
-          ? EmptyState(t('No jobs to review', 'রিভিউয়ের জন্য কোনো জব নেই'), icon: Icons.task_alt)
+          ? EmptyState(t('No jobs to review', 'রিভিউয়ের জন্য কোনো জব নেই'), title: t('All caught up', 'সব কাজ শেষ'), icon: Icons.task_alt)
           : ListView.separated(
               padding: const EdgeInsets.all(16),
               itemCount: items.length,

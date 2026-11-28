@@ -19,46 +19,120 @@ class AsyncView<T> extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => value.when(
+        // Keep showing the last data while a refresh runs, so pull-to-refresh doesn't flash a spinner.
+        skipLoadingOnRefresh: true,
         data: data,
         loading: () => loading ?? const Center(child: CircularProgressIndicator()),
-        error: (e, _) => EmptyState(
-          e.toString(),
-          icon: Icons.cloud_off_outlined,
-          action: onRetry == null ? null : OutlinedButton(onPressed: onRetry, child: Text(t('Try again', 'আবার চেষ্টা করুন'))),
-        ),
+        error: (e, _) => ErrorState(e, onRetry: onRetry),
       );
 }
 
-void showMessage(BuildContext context, Object message) =>
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message.toString())));
+/// A friendly error with a retry button, instead of a bare error string.
+class ErrorState extends StatelessWidget {
+  const ErrorState(this.error, {super.key, this.onRetry});
+  final Object error;
+  final VoidCallback? onRetry;
+  @override
+  Widget build(BuildContext context) {
+    final offline = error.toString() == t('Network problem, please try again', 'নেটওয়ার্ক সমস্যা, আবার চেষ্টা করুন');
+    return EmptyState(
+      offline ? t('Check your internet connection and try again.', 'ইন্টারনেট সংযোগ দেখে আবার চেষ্টা করুন।') : error.toString(),
+      title: offline ? t('You seem to be offline', 'ইন্টারনেট সংযোগ নেই মনে হচ্ছে') : t('Something went wrong', 'কিছু একটা সমস্যা হয়েছে'),
+      icon: offline ? Icons.wifi_off_rounded : Icons.error_outline_rounded,
+      tone: EmptyTone.error,
+      action: onRetry == null
+          ? null
+          : FilledButton.tonalIcon(onPressed: onRetry, icon: const Icon(Icons.refresh_rounded), label: Text(t('Try again', 'আবার চেষ্টা করুন'))),
+    );
+  }
+}
 
+void showMessage(BuildContext context, Object message, {bool success = false}) {
+  final scheme = Theme.of(context).colorScheme;
+  final isError = message is Exception || message is Error;
+  ScaffoldMessenger.of(context)
+    ..hideCurrentSnackBar()
+    ..showSnackBar(SnackBar(
+      backgroundColor: isError ? scheme.error : (success ? Brand.success : null),
+      content: Row(children: [
+        if (isError || success) ...[
+          Icon(isError ? Icons.error_outline_rounded : Icons.check_circle_rounded, color: Colors.white, size: 20),
+          const SizedBox(width: 10),
+        ],
+        Expanded(child: Text(message.toString(), style: (isError || success) ? const TextStyle(color: Colors.white) : null)),
+      ]),
+    ));
+}
+
+/// Shorthand for a green "done" message after a save.
+void showSuccess(BuildContext context, String message) => showMessage(context, message, success: true);
+
+enum EmptyTone { normal, error }
+
+/// Empty, finished or error state: icon, title, a line of help and an optional action.
+/// [compact] draws a small inline version for a section inside a longer page.
 class EmptyState extends StatelessWidget {
-  const EmptyState(this.text, {super.key, this.icon = Icons.inbox_outlined, this.title, this.action});
+  const EmptyState(this.text, {super.key, this.icon = Icons.inbox_outlined, this.title, this.action, this.compact = false, this.tone = EmptyTone.normal});
   final String text;
   final String? title;
   final IconData icon;
   final Widget? action;
+  final bool compact;
+  final EmptyTone tone;
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final text = Theme.of(context).textTheme;
+    final error = tone == EmptyTone.error;
+    final bg = error ? scheme.errorContainer.withValues(alpha: 0.7) : scheme.primaryContainer.withValues(alpha: 0.6);
+    final fg = error ? scheme.error : scheme.primary;
+    if (compact) {
+      return Container(
+        padding: const EdgeInsets.all(Gap.l),
+        decoration: BoxDecoration(
+          color: scheme.surface,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: scheme.outlineVariant),
+        ),
+        child: Row(children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(color: bg, shape: BoxShape.circle),
+            child: Icon(icon, size: 20, color: fg),
+          ),
+          const SizedBox(width: Gap.m),
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              if (title != null) Text(title!, style: text.titleSmall),
+              Text(this.text, style: text.bodySmall?.copyWith(color: scheme.onSurfaceVariant)),
+            ]),
+          ),
+          if (action != null) ...[const SizedBox(width: Gap.s), action!],
+        ]),
+      );
+    }
     return Center(
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(32),
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Container(
-            width: 88,
-            height: 88,
-            decoration: BoxDecoration(color: scheme.primaryContainer.withValues(alpha: 0.6), shape: BoxShape.circle),
-            child: Icon(icon, size: 40, color: scheme.primary),
-          ),
-          const SizedBox(height: 16),
-          if (title != null) ...[
-            Text(title!, style: Theme.of(context).textTheme.titleMedium, textAlign: TextAlign.center),
-            const SizedBox(height: 6),
-          ],
-          Text(text, textAlign: TextAlign.center, style: TextStyle(color: scheme.onSurfaceVariant)),
-          if (action != null) ...[const SizedBox(height: 16), action!],
-        ]),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 360),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Container(
+              width: 88,
+              height: 88,
+              decoration: BoxDecoration(color: bg, shape: BoxShape.circle),
+              child: Icon(icon, size: 40, color: fg),
+            ),
+            const SizedBox(height: 20),
+            if (title != null) ...[
+              Text(title!, style: text.titleMedium, textAlign: TextAlign.center),
+              const SizedBox(height: 6),
+            ],
+            Text(this.text, textAlign: TextAlign.center, style: text.bodyMedium?.copyWith(color: scheme.onSurfaceVariant)),
+            if (action != null) ...[const SizedBox(height: 20), action!],
+          ]),
+        ),
       ),
     );
   }
@@ -648,3 +722,155 @@ class MenuItem extends StatelessWidget {
         trailing: trailing ?? const Icon(Icons.chevron_right_rounded),
       );
 }
+
+/// Sticky bar at the bottom of a form screen with its main button (Save, Submit),
+/// so the action is always in reach and never hidden in the top corner.
+class BottomActionBar extends StatelessWidget {
+  const BottomActionBar({super.key, required this.child, this.note});
+  final Widget child;
+  final String? note;
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: scheme.surface,
+        border: Border(top: BorderSide(color: scheme.outlineVariant)),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(Gap.l, Gap.m, Gap.l, Gap.m),
+          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            if (note != null) ...[
+              Text(note!, textAlign: TextAlign.center, style: Theme.of(context).textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant)),
+              const SizedBox(height: Gap.s),
+            ],
+            child,
+          ]),
+        ),
+      ),
+    );
+  }
+}
+
+/// Full-width primary button with a spinner while it works.
+class PrimaryButton extends StatelessWidget {
+  const PrimaryButton({super.key, required this.label, this.onPressed, this.icon, this.busy = false});
+  final String label;
+  final VoidCallback? onPressed;
+  final IconData? icon;
+  final bool busy;
+  @override
+  Widget build(BuildContext context) => FilledButton(
+        style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(50)),
+        onPressed: busy ? null : onPressed,
+        child: busy
+            ? const SizedBox.square(dimension: 20, child: CircularProgressIndicator(strokeWidth: 2.2))
+            : Row(mainAxisSize: MainAxisSize.min, children: [
+                if (icon != null) ...[Icon(icon, size: 20), const SizedBox(width: 8)],
+                Flexible(child: Text(label, overflow: TextOverflow.ellipsis)),
+              ]),
+      );
+}
+
+/// "Label ........ value" line for money summaries.
+class InfoRow extends StatelessWidget {
+  const InfoRow(this.label, this.value, {super.key, this.strong = false, this.valueColor});
+  final String label;
+  final String value;
+  final bool strong;
+  final Color? valueColor;
+  @override
+  Widget build(BuildContext context) {
+    final text = Theme.of(context).textTheme;
+    final scheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 5),
+      child: Row(children: [
+        Expanded(child: Text(label, style: strong ? text.titleSmall : text.bodyMedium?.copyWith(color: scheme.onSurfaceVariant))),
+        const SizedBox(width: Gap.m),
+        Text(value, style: (strong ? text.titleMedium : text.bodyMedium)?.copyWith(fontWeight: FontWeight.w700, color: valueColor)),
+      ]),
+    );
+  }
+}
+
+/// Small grey heading above a group of fields or a list on a long page.
+class FormSectionTitle extends StatelessWidget {
+  const FormSectionTitle(this.title, {super.key, this.subtitle, this.padding = const EdgeInsets.fromLTRB(0, Gap.xl, 0, Gap.m)});
+  final String title;
+  final String? subtitle;
+  final EdgeInsets padding;
+  @override
+  Widget build(BuildContext context) {
+    final text = Theme.of(context).textTheme;
+    return Padding(
+      padding: padding,
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(title, style: text.titleMedium),
+        if (subtitle != null) ...[
+          const SizedBox(height: 2),
+          Text(subtitle!, style: text.bodySmall?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+        ],
+      ]),
+    );
+  }
+}
+
+/// Asks before leaving a form with unsaved changes. Returns true to leave.
+Future<bool> confirmDiscard(BuildContext context) async =>
+    await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(t('Discard changes?', 'পরিবর্তন বাদ দেবেন?')),
+        content: Text(t('You have changes that are not saved yet.', 'কিছু পরিবর্তন এখনো সেভ করা হয়নি।')),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(t('Keep editing', 'এডিট চালিয়ে যান'))),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: TextButton.styleFrom(foregroundColor: Theme.of(ctx).colorScheme.error),
+            child: Text(t('Discard', 'বাদ দিন')),
+          ),
+        ],
+      ),
+    ) ??
+    false;
+
+/// Wraps a form screen so Android back / the back arrow asks before throwing away edits.
+class UnsavedChangesGuard extends StatelessWidget {
+  const UnsavedChangesGuard({super.key, required this.dirty, required this.child});
+  final bool dirty;
+  final Widget child;
+  @override
+  Widget build(BuildContext context) => PopScope(
+        canPop: !dirty,
+        onPopInvokedWithResult: (didPop, _) async {
+          if (didPop) return;
+          if (await confirmDiscard(context) && context.mounted) Navigator.of(context).pop();
+        },
+        child: child,
+      );
+}
+
+/// "Are you sure?" before a step that deletes or blocks something. Returns true to go ahead.
+Future<bool> confirmAction(BuildContext context, {required String title, String? message, required String confirm, bool destructive = true}) async =>
+    await showDialog<bool>(
+      context: context,
+      builder: (ctx) {
+        final scheme = Theme.of(ctx).colorScheme;
+        return AlertDialog(
+          title: Text(title),
+          content: message == null ? null : Text(message),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(t('Cancel', 'বাতিল'))),
+            FilledButton(
+              style: destructive ? FilledButton.styleFrom(backgroundColor: scheme.error, foregroundColor: scheme.onError) : null,
+              onPressed: () => Navigator.pop(ctx, true),
+              child: Text(confirm),
+            ),
+          ],
+        );
+      },
+    ) ??
+    false;
