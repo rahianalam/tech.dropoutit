@@ -62,9 +62,10 @@ export class BookingsService {
     const until = new Date(now.getTime() + (days + 1) * 864e5);
     const [rules, booked] = await Promise.all([
       this.pricedRules(teacherId),
-      this.prisma.booking.findMany({ where: { teacherId, slotLock: 'live', startAt: { gte: now, lte: until } }, select: { startAt: true } }),
+      // endAt > now also catches a session that is still running.
+      this.prisma.booking.findMany({ where: { teacherId, slotLock: 'live', endAt: { gt: now }, startAt: { lte: until } }, select: { startAt: true, endAt: true } }),
     ]);
-    return generateSlots(rules, booked.map((b) => b.startAt), now, Math.min(days, 30), now);
+    return generateSlots(rules, booked, now, Math.min(days, 30), now);
   }
 
   // ---------- booking ----------

@@ -42,17 +42,26 @@ export class PayoutsService {
     });
     const created = [];
     for (const b of balances) {
-      const amount = b._sum.amountPaisa ?? 0;
-      if (amount <= 0 || amount < settings.minPayoutPaisa) continue;
+      const estimate = b._sum.amountPaisa ?? 0;
+      if (estimate <= 0 || estimate < settings.minPayoutPaisa) continue;
       const profile = await this.prisma.teacherProfile.findUnique({ where: { userId: b.teacherId } });
+      // The amount is summed from the entries this payout actually took, inside the transaction, so an
+      // entry that matured (or a second run that grabbed the entries) in between can't make it wrong.
       const payout = await this.prisma.$transaction(async (tx) => {
         const p = await tx.payout.create({
-          data: { teacherId: b.teacherId, amountPaisa: amount, method: profile?.payoutMethod, account: profile?.payoutAccount },
+          data: { teacherId: b.teacherId, amountPaisa: 0, method: profile?.payoutMethod, account: profile?.payoutAccount },
         });
         await tx.ledgerEntry.updateMany({ where: { teacherId: b.teacherId, status: 'AVAILABLE', payoutId: null }, data: { payoutId: p.id } });
-        return p;
+        const taken = await tx.ledgerEntry.aggregate({ where: { payoutId: p.id }, _sum: { amountPaisa: true } });
+        const amount = taken._sum.amountPaisa ?? 0;
+        if (amount <= 0 || amount < settings.minPayoutPaisa) {
+          await tx.ledgerEntry.updateMany({ where: { payoutId: p.id }, data: { payoutId: null } });
+          await tx.payout.delete({ where: { id: p.id } });
+          return null;
+        }
+        return tx.payout.update({ where: { id: p.id }, data: { amountPaisa: amount } });
       });
-      created.push(payout);
+      if (payout) created.push(payout);
     }
     return created;
   }

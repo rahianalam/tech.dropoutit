@@ -22,8 +22,14 @@ export interface Slot {
   pricePaisa: number;
 }
 
-export function generateSlots(rules: Rule[], taken: Date[], from: Date, days: number, now = new Date()): Slot[] {
-  const takenSet = new Set(taken.map((d) => d.getTime()));
+/**
+ * `taken` holds the teacher's live bookings. A bare Date blocks the slot starting then; a
+ * { startAt, endAt } blocks every slot that overlaps it, so a booking made before the
+ * teacher changed their slot length still keeps its whole time free of new bookings.
+ */
+export function generateSlots(rules: Rule[], taken: (Date | { startAt: Date; endAt: Date })[], from: Date, days: number, now = new Date()): Slot[] {
+  const takenSet = new Set(taken.filter((d): d is Date => d instanceof Date).map((d) => d.getTime()));
+  const busy = taken.filter((d): d is { startAt: Date; endAt: Date } => !(d instanceof Date)).map((b) => [b.startAt.getTime(), b.endAt.getTime()]);
   const earliest = now.getTime() + MIN_LEAD_MINUTES * 60_000;
   const out: Slot[] = [];
   for (const rule of rules) {
@@ -36,8 +42,9 @@ export function generateSlots(rules: Rule[], taken: Date[], from: Date, days: nu
       if (new Date(dayStart + offset).getUTCDay() !== rule.weekday) continue;
       for (let m = rule.startMinute; m + rule.slotMinutes <= rule.endMinute; m += rule.slotMinutes) {
         const start = dayStart + m * 60_000;
-        if (start < earliest || takenSet.has(start)) continue;
-        out.push({ startAt: new Date(start), endAt: new Date(start + rule.slotMinutes * 60_000), pricePaisa: rule.pricePaisa });
+        const end = start + rule.slotMinutes * 60_000;
+        if (start < earliest || takenSet.has(start) || busy.some(([s, e]) => start < e && s < end)) continue;
+        out.push({ startAt: new Date(start), endAt: new Date(end), pricePaisa: rule.pricePaisa });
       }
     }
   }
