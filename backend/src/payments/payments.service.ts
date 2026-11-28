@@ -39,7 +39,8 @@ export class PaymentsService {
     if (course.isFree) throw new BadRequestException('This course is free; enroll directly');
     if (course.teacherId === userId) throw new ForbiddenException('You cannot buy your own course');
     const enrolled = await this.prisma.enrollment.findUnique({ where: { userId_courseId: { userId, courseId } } });
-    if (enrolled?.status === 'ACTIVE') throw new ConflictException('You are already enrolled');
+    // An enrollment from an expired referral free pass does not count: the student may buy the course.
+    if (enrolled?.status === 'ACTIVE' && (!enrolled.expiresAt || enrolled.expiresAt > new Date())) throw new ConflictException('You are already enrolled');
 
     const user = await this.prisma.user.findUniqueOrThrow({ where: { id: userId } });
     const fresh = new Date(Date.now() - (ORDER_TTL_MINUTES - 5) * 60_000);
@@ -156,7 +157,8 @@ export class PaymentsService {
         await tx.enrollment.upsert({
           where: { userId_courseId: { userId: order.userId, courseId: course.id } },
           create: { userId: order.userId, courseId: course.id, orderId },
-          update: { status: 'ACTIVE', orderId },
+          // A bought course is kept for good, even if it was first opened with a free pass.
+          update: { status: 'ACTIVE', orderId, expiresAt: null },
         });
         await this.recordEarning(tx, order, course.teacherId, payment.feePaisa, 'course');
         await tx.notification.create({ data: { userId: order.userId, title: 'পেমেন্ট সফল', body: `"${course.title}" কোর্সে আপনি এনরোলড।` } });
@@ -172,6 +174,8 @@ export class PaymentsService {
         const a = await tx.affiliateProfile.update({ where: { userId: order.userId }, data: { membershipPaidAt: new Date(), lastActiveAt: new Date() } });
         // Documents already sent → straight to the admin's review queue.
         if (a.status === 'UNPAID' && a.selfieId && a.nidFrontId) await tx.affiliateProfile.update({ where: { userId: order.userId }, data: { status: 'IN_REVIEW' } });
+        // Deactivated for being idle: paying again (as payMembership allows) brings the verified account back.
+        if (a.status === 'DEACTIVATED') await tx.affiliateProfile.update({ where: { userId: order.userId }, data: { status: 'ACTIVE' } });
       }
 
       if (order.itemType === 'STORAGE_PLAN') {
@@ -195,7 +199,9 @@ export class PaymentsService {
   private async confirmBooking(tx: Tx, order: Order, feePaisa: number) {
     const b = await tx.booking.findUnique({ where: { id: order.itemId }, include: { teacher: true, student: true } });
     if (!b) return;
-    const clash = await tx.booking.findFirst({ where: { teacherId: b.teacherId, startAt: b.startAt, slotLock: 'live', id: { not: b.id } } });
+    const clash = await tx.booking.findFirst({
+      where: { teacherId: b.teacherId, slotLock: 'live', id: { not: b.id }, startAt: { lt: b.endAt }, endAt: { gt: b.startAt } },
+    });
     if (clash || !['HELD', 'CANCELLED'].includes(b.status) || (b.status === 'CANCELLED' && b.cancelledBy !== 'system')) {
       await tx.notification.create({ data: { userId: b.studentId, title: 'স্লটটি আর খালি নেই', body: 'পেমেন্ট দেরিতে পৌঁছেছে এবং স্লটটি অন্য কেউ নিয়েছে। পূর্ণ টাকা ফেরত দেওয়া হবে।' } });
       const admins = await tx.userRole.findMany({ where: { role: 'ADMIN' } });
@@ -307,7 +313,10 @@ export class PaymentsService {
       if (order.status !== 'PAID') throw new ConflictException(`Order is ${order.status}`);
       await tx.order.update({ where: { id: orderId }, data: { status: 'REFUNDED', refundedAt: new Date() } });
       await tx.enrollment.updateMany({ where: { orderId }, data: { status: 'REFUNDED' } });
-      await tx.booking.updateMany({ where: { orderId }, data: { status: 'CANCELLED' } });
+      // Free the slot too, or nobody could book that time again.
+      await tx.booking.updateMany({ where: { orderId, status: { not: 'CANCELLED' } }, data: { status: 'CANCELLED', slotLock: null, cancelledBy: 'admin' } });
+      // The affiliate's 2% goes too, unless it was already paid out.
+      await tx.affiliateEarning.updateMany({ where: { orderId, status: { not: 'PAID' } }, data: { status: 'VOID' } });
       const earnings = await tx.ledgerEntry.findMany({ where: { orderId, type: 'EARNING' } });
       for (const e of earnings) {
         if (e.status === 'PAID') {
@@ -316,6 +325,8 @@ export class PaymentsService {
           });
         } else {
           await tx.ledgerEntry.update({ where: { id: e.id }, data: { status: 'VOID', payoutId: null } });
+          // Already in a payout that is not sent yet: take it off that payout's amount.
+          if (e.payoutId) await tx.payout.updateMany({ where: { id: e.payoutId, status: { not: 'PAID' } }, data: { amountPaisa: { decrement: e.amountPaisa } } });
         }
       }
       await tx.auditLog.create({ data: { actorId: adminId, action: 'order.refund', target: orderId } });

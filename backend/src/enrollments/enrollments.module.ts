@@ -8,6 +8,10 @@ class ProgressDto {
   @IsOptional() @IsBoolean() completed?: boolean;
 }
 
+/** An ACTIVE enrollment that has not run out (free-pass enrollments end with the pass). */
+const live = () => ({ status: 'ACTIVE' as const, OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }] });
+const isLive = (e: { status: string; expiresAt: Date | null } | null) => !!e && e.status === 'ACTIVE' && (!e.expiresAt || e.expiresAt > new Date());
+
 @Injectable()
 export class EnrollmentsService {
   constructor(private prisma: PrismaService) {}
@@ -22,7 +26,7 @@ export class EnrollmentsService {
     if (!course || course.status !== 'PUBLISHED') throw new NotFoundException('Course not found');
     if (course.teacherId === userId) throw new ForbiddenException('You cannot enroll in your own course');
     const existing = await this.prisma.enrollment.findUnique({ where: { userId_courseId: { userId, courseId } } });
-    if (existing?.status === 'ACTIVE' && (!existing.expiresAt || existing.expiresAt > new Date())) return existing;
+    if (isLive(existing)) return existing;
     if (!course.isFree) {
       // Referral reward: any paid course is open until the free pass ends.
       const user = await this.prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { freePassUntil: true } });
@@ -41,14 +45,14 @@ export class EnrollmentsService {
     return this.prisma.enrollment.upsert({
       where: { userId_courseId: { userId, courseId } },
       create: { userId, courseId },
-      update: { status: 'ACTIVE' },
+      update: { status: 'ACTIVE', expiresAt: null },
     });
   }
 
   /** My courses, most recently studied first, each with the lesson to resume from. */
   async mine(userId: string) {
     const rows = await this.prisma.enrollment.findMany({
-      where: { userId, status: 'ACTIVE' },
+      where: { userId, ...live() },
       include: {
         course: {
           select: {
@@ -78,7 +82,7 @@ export class EnrollmentsService {
       where: { userId_courseId: { userId, courseId } },
       include: { progress: { select: { lessonId: true, completed: true, watchedSec: true } } },
     });
-    if (!e || e.status !== 'ACTIVE') return { enrolled: false, progressPct: 0, lessons: [] };
+    if (!e || !isLive(e)) return { enrolled: false, progressPct: 0, lessons: [] };
     return { enrolled: true, progressPct: e.progressPct, lessons: e.progress };
   }
 
@@ -89,7 +93,7 @@ export class EnrollmentsService {
     const enrollment = await this.prisma.enrollment.findUnique({
       where: { userId_courseId: { userId, courseId: lesson.section.courseId } },
     });
-    if (!enrollment || enrollment.status !== 'ACTIVE') throw new ForbiddenException('Not enrolled');
+    if (!enrollment || !isLive(enrollment)) throw new ForbiddenException('Not enrolled');
 
     const completed = dto.completed ?? (lesson.durationSec > 0 && dto.watchedSec >= lesson.durationSec * 0.9);
     await this.prisma.lessonProgress.upsert({

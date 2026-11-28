@@ -15,8 +15,12 @@ class Api {
       },
       onError: (e, handler) async {
         final path = e.requestOptions.path;
-        if (e.response?.statusCode == 401 && !path.startsWith('/auth/') && await _refresh()) {
-          final opts = e.requestOptions..headers['Authorization'] = 'Bearer $accessToken';
+        // Retry a request once only: a second 401 means the account itself is refused.
+        final retried = e.requestOptions.extra['retried'] == true;
+        if (e.response?.statusCode == 401 && !retried && !path.startsWith('/auth/') && await _refresh()) {
+          final opts = e.requestOptions
+            ..headers['Authorization'] = 'Bearer $accessToken'
+            ..extra['retried'] = true;
           try {
             return handler.resolve(await dio.fetch(opts));
           } on DioException catch (err) {
@@ -55,17 +59,31 @@ class Api {
     await _storage.delete(key: 'refreshToken');
   }
 
-  Future<bool> _refresh() async {
+  Future<bool>? _refreshing;
+
+  /// Several requests can fail with 401 at once when the access token runs out. They all
+  /// wait for one refresh: the server accepts each refresh token only once, so parallel
+  /// refreshes would sign the user out.
+  Future<bool> _refresh() => _refreshing ??= _doRefresh().whenComplete(() => _refreshing = null);
+
+  Future<bool> _doRefresh() async {
     final refresh = await _storage.read(key: 'refreshToken');
     if (refresh == null) return false;
     try {
-      final res = await Dio(BaseOptions(baseUrl: apiUrl)).post('/auth/refresh', data: {'refreshToken': refresh});
+      final res = await Dio(BaseOptions(baseUrl: apiUrl, connectTimeout: const Duration(seconds: 15))).post('/auth/refresh', data: {'refreshToken': refresh});
       await saveTokens(res.data as Map<String, dynamic>);
       return true;
+    } on DioException catch (e) {
+      // Only the server saying "no" ends the session. No internet or a server hiccup
+      // keeps the saved sign-in, so the user is still signed in when the app comes back.
+      final status = e.response?.statusCode;
+      if (status == 401 || status == 400) {
+        accessToken = null;
+        await _storage.delete(key: 'refreshToken');
+        onSessionExpired?.call();
+      }
+      return false;
     } catch (_) {
-      accessToken = null;
-      await _storage.delete(key: 'refreshToken');
-      onSessionExpired?.call();
       return false;
     }
   }

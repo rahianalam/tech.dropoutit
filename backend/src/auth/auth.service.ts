@@ -64,7 +64,12 @@ export class AuthService {
     if (!stored || stored.revokedAt || stored.expiresAt < new Date() || stored.tokenHash !== sha256(secret)) {
       throw new UnauthorizedException('Invalid refresh token');
     }
-    await this.prisma.refreshToken.update({ where: { id }, data: { revokedAt: new Date() } });
+    // Only one caller can spend a refresh token, even if two requests race with it.
+    const spent = await this.prisma.refreshToken.updateMany({ where: { id, revokedAt: null }, data: { revokedAt: new Date() } });
+    if (spent.count === 0) throw new UnauthorizedException('Invalid refresh token');
+    // A blocked account gets no new tokens (otherwise the app would refresh and retry forever).
+    const user = await this.prisma.user.findUnique({ where: { id: stored.userId }, select: { status: true } });
+    if (!user || user.status !== 'ACTIVE') throw new UnauthorizedException('Account is blocked');
     return this.issueTokens(stored.userId);
   }
 

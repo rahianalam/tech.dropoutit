@@ -27,7 +27,8 @@ class UpdateSettingsDto {
   @count() starterPricePaisa?: number;
   @count() proPricePaisa?: number;
   @count() unlimitedPricePaisa?: number;
-  @count() referralTarget?: number;
+  /** At least 1: the reward is given per `referralTarget` friends. */
+  @IsOptional() @IsInt() @Min(1) @Max(10_000) referralTarget?: number;
   @count() referralPassDays?: number;
   @count() affiliateFeePaisa?: number;
   @count() affiliateInactiveDays?: number;
